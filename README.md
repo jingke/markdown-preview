@@ -36,6 +36,32 @@ Open the printed URL (usually `http://localhost:5173`). The dev server proxies `
 
 Use **Choose .md file** to upload a Markdown file. If the API is down, the app still previews the file locally and shows a short notice.
 
+## Run with Podman (containers)
+
+From the repository root, build and start the backend and frontend:
+
+```bash
+podman-compose up --build
+```
+
+Equivalent: `./scripts/podman-up.sh` from the repo root.
+
+Then open **http://localhost:5173**. The API is on **http://localhost:8000** (for example `GET /health`).
+
+Stop and remove containers:
+
+```bash
+podman-compose down
+```
+
+**Notes**
+
+- On many Linux setups the `docker` command is a Podman shim that does **not** implement `docker compose`. Use **`podman-compose`** (install the `podman-compose` package if needed) or install the [Podman Compose](https://github.com/containers/podman-compose) plugin so `podman compose` works.
+- `docker-compose.yml` pins images as `localhost/markdown-preview-*` so Podman does not treat short names like `markdown-preview_backend` as pulls from other registries when a local build is required.
+- Container builds use **pinned Python dependencies** and **retries** for `pip` and `npm ci`. Base images already ship CA certificates; we avoid extra `apt-get` steps so flaky Debian mirror downloads do not fail the build.
+- `docker-compose.yml` sets **`build.network: host`** so `pip` / `npm` use the same networking as your machine during image build. That avoids many TLS errors on WSL2 and flaky container bridges (`bad record MAC`, `ERR_SSL_CIPHER_OPERATION_FAILED`). Docker Desktop on Mac typically falls back to a normal bridge for unsupported host networking.
+- If installs still fail, retry when the network is stable; check VPN, proxy, and corporate TLS inspection. As a last resort, run `podman system prune` and rebuild to clear corrupted layer cache.
+
 ## Tests
 
 ### Backend (pytest)
