@@ -1,0 +1,317 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  text-align: left;
+}
+
+.app-toolbar {
+  flex-shrink: 0;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-toolbar-bg);
+}
+
+.app-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--app-heading);
+}
+
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.file-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--app-button-fg);
+  background: var(--app-button-bg);
+  border: 1px solid var(--app-button-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.file-button:hover {
+  background: var(--app-button-hover);
+}
+
+.file-button input[type='file'] {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.file-name {
+  font-size: 0.85rem;
+  color: var(--app-muted);
+  max-width: min(40rem, 70vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--app-error);
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.app-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.app-split--source-hidden .app-preview-pane {
+  flex: 1;
+  max-width: none;
+}
+
+.app-editor-pane,
+.app-preview-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-editor-bg);
+}
+
+.app-preview-pane {
+  background: transparent;
+}
+
+.app-editor-pane {
+  border-right: 1px solid var(--app-border);
+}
+
+.app-pane-header-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  min-height: calc(1.5rem + 1rem);
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-toolbar-bg);
+}
+
+.app-pane-heading {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  min-height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--app-muted);
+  border: none;
+  background: transparent;
+}
+
+.source-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.source-toggle:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.source-toggle--on {
+  background: var(--toggle-on);
+}
+
+.source-toggle--off {
+  background: var(--toggle-off);
+}
+
+.source-toggle::after {
+  content: '';
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.source-toggle--on::after {
+  transform: translateX(1.2rem);
+}
+
+.app-editor {
+  flex: 1;
+  width: 100%;
+  min-height: 12rem;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border: none;
+  resize: none;
+  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Consolas,
+    monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: inherit;
+  background: var(--app-editor-bg);
+  box-sizing: border-box;
+}
+
+.app-editor:focus {
+  outline: none;
+}
+
+.app-editor:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--app-accent);
+}
+
+.app-preview-body {
+  flex: 1;
+  overflow: auto;
+  box-sizing: border-box;
+  container-type: inline-size;
+  container-name: markdown-preview;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Gutter tracks preview pane width (container), not only the viewport */
+  padding-block: clamp(0.65rem, 0.45rem + 1.25cqw, 2rem);
+  padding-inline: clamp(0.75rem, 0.5rem + 2cqw, 2.5rem);
+}
+
+.app-preview-body .markdown-body {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
+  /* Base size scales with preview column; em-based headings in github-markdown follow */
+  font-size: clamp(0.8125rem, 0.62rem + 1.15cqw, 1.125rem);
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) {
+  .app-split {
+    flex-direction: column;
+  }
+
+  .app-editor-pane {
+    border-right: none;
+    border-bottom: 1px solid var(--app-border);
+    flex: 0 0 min(40vh, 22rem);
+    max-height: min(40vh, 22rem);
+  }
+
+  .app-preview-pane {
+    flex: 1;
+    min-height: 50vh;
+  }
+
+  .app-split--source-hidden .app-preview-pane {
+    min-height: 0;
+    flex: 1;
+  }
+}
+
+/* Mermaid lives inside pre > div in react-markdown; normalize spacing */
+.markdown-body pre:has(.mermaid-zoom-root),
+.markdown-body pre:has(.mermaid) {
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.markdown-body .mermaid-zoom-root {
+  margin: 0.5rem 0;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-editor-bg);
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  outline: none;
+}
+
+.markdown-body .mermaid-zoom-root:focus-visible {
+  box-shadow: 0 0 0 2px var(--app-accent);
+}
+
+.markdown-body .mermaid-zoom-viewport {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 0.65rem 0.5rem;
+  display: flex;
+  justify-content: center;
+  background: var(--app-editor-bg);
+}
+
+.markdown-body .mermaid-zoom-inner {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.markdown-body .mermaid-zoom-inner .mermaid {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+/* Whole diagram visible: SVG scales to preview width, height follows (scroll preview for tall charts) */
+.markdown-body .mermaid-zoom-inner .mermaid svg {
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+  margin-inline: auto;
+}
+
+.markdown-body .mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 0.5rem 0;
+}
