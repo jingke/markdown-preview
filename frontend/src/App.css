@@ -1,0 +1,181 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  text-align: left;
+}
+
+.app-toolbar {
+  flex-shrink: 0;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-toolbar-bg);
+}
+
+.app-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--app-heading);
+}
+
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.file-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--app-button-fg);
+  background: var(--app-button-bg);
+  border: 1px solid var(--app-button-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.file-button:hover {
+  background: var(--app-button-hover);
+}
+
+.file-button input[type='file'] {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.file-name {
+  font-size: 0.85rem;
+  color: var(--app-muted);
+  max-width: min(40rem, 70vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--app-error);
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.app-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.app-editor-pane,
+.app-preview-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-editor-bg);
+}
+
+.app-preview-pane {
+  background: transparent;
+}
+
+.app-editor-pane {
+  border-right: 1px solid var(--app-border);
+}
+
+.app-pane-heading {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--app-muted);
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-toolbar-bg);
+}
+
+.app-editor {
+  flex: 1;
+  width: 100%;
+  min-height: 12rem;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border: none;
+  resize: none;
+  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Consolas,
+    monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: inherit;
+  background: var(--app-editor-bg);
+  box-sizing: border-box;
+}
+
+.app-editor:focus {
+  outline: none;
+}
+
+.app-editor:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--app-accent);
+}
+
+.app-preview-body {
+  flex: 1;
+  overflow: auto;
+  padding: 1.25rem 1.5rem 2rem;
+  box-sizing: border-box;
+}
+
+.app-preview-body .markdown-body {
+  max-width: 58rem;
+}
+
+@media (max-width: 900px) {
+  .app-split {
+    flex-direction: column;
+  }
+
+  .app-editor-pane {
+    border-right: none;
+    border-bottom: 1px solid var(--app-border);
+    flex: 0 0 min(40vh, 22rem);
+    max-height: min(40vh, 22rem);
+  }
+
+  .app-preview-pane {
+    flex: 1;
+    min-height: 50vh;
+  }
+}
+
+/* Mermaid lives inside pre > div in react-markdown; normalize spacing */
+.markdown-body pre:has(.mermaid) {
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.markdown-body .mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 0.5rem 0;
+}
