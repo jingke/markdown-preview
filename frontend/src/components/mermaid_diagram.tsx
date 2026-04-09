@@ -1,13 +1,44 @@
-import { useId, useLayoutEffect, useRef } from 'react'
+import type { CSSProperties } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import mermaid from 'mermaid'
 
 let isMermaidInitialized: boolean = false
+
+/** Base diagram text size (default theme uses 16px). */
+const MERMAID_FONT_SIZE_PX: number = 20
+const MERMAID_THEME_FONT_SIZE: string = `${MERMAID_FONT_SIZE_PX}px`
+
+const SCALE_MIN: number = 0.25
+const SCALE_MAX: number = 4
+const SCALE_STEP: number = 0.15
+
+function clampScale(value: number): number {
+  return Math.min(SCALE_MAX, Math.max(SCALE_MIN, value))
+}
 
 function ensureMermaidInitialized(): void {
   if (isMermaidInitialized) {
     return
   }
-  mermaid.initialize({ startOnLoad: false, theme: 'default' })
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    fontSize: MERMAID_FONT_SIZE_PX,
+    themeVariables: {
+      fontSize: MERMAID_THEME_FONT_SIZE,
+    },
+    sequence: {
+      messageFontSize: MERMAID_FONT_SIZE_PX,
+      noteFontSize: MERMAID_FONT_SIZE_PX - 2,
+      actorFontSize: MERMAID_FONT_SIZE_PX - 2,
+    },
+  })
   isMermaidInitialized = true
 }
 
@@ -41,8 +72,10 @@ export interface MermaidDiagramProps {
 export function MermaidDiagram(props: MermaidDiagramProps) {
   const { chart } = props
   const containerRef = useRef<HTMLDivElement>(null)
+  const zoomRootRef = useRef<HTMLDivElement>(null)
   const reactId: string = useId().replace(/:/g, '')
   const sequenceRef = useRef(0)
+  const [scale, setScale] = useState<number>(1)
   useLayoutEffect(() => {
     ensureMermaidInitialized()
     const el: HTMLDivElement | null = containerRef.current
@@ -74,5 +107,40 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
       clearContainer(el)
     }
   }, [chart, reactId])
-  return <div className="mermaid" ref={containerRef} />
+  useEffect(() => {
+    const root: HTMLDivElement | null = zoomRootRef.current
+    if (!root) {
+      return
+    }
+    const onWheel = (e: WheelEvent): void => {
+      if (!e.ctrlKey && !e.metaKey) {
+        return
+      }
+      e.preventDefault()
+      const delta: number = e.deltaY < 0 ? SCALE_STEP : -SCALE_STEP
+      setScale((previous: number) => clampScale(previous + delta))
+    }
+    root.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      root.removeEventListener('wheel', onWheel)
+    }
+  }, [])
+  const rootStyle: CSSProperties & { zoom: number } = {
+    zoom: scale,
+  }
+  return (
+    <div
+      ref={zoomRootRef}
+      className="mermaid-zoom-root"
+      style={rootStyle}
+      tabIndex={0}
+      aria-label="Mermaid diagram; hold Ctrl or Command and scroll the mouse wheel to zoom"
+    >
+      <div className="mermaid-zoom-viewport">
+        <div className="mermaid-zoom-inner">
+          <div className="mermaid" ref={containerRef} />
+        </div>
+      </div>
+    </div>
+  )
 }

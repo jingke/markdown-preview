@@ -1,10 +1,12 @@
+import asyncio
 import io
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from starlette.datastructures import UploadFile
 
-from app.main import MAX_UPLOAD_BYTES, validate_markdown_filename
+from app.main import MAX_UPLOAD_BYTES, read_upload_bytes_limited, validate_markdown_filename
 
 
 def test_health_returns_ok(client: TestClient) -> None:
@@ -77,3 +79,24 @@ def test_validate_markdown_filename_rejects_pdf() -> None:
 def test_openapi_docs_available(client: TestClient) -> None:
     response = client.get("/docs")
     assert response.status_code == 200
+
+
+def test_read_upload_bytes_limited_accepts_exact_max() -> None:
+    async def run() -> None:
+        data: bytes = b"y" * MAX_UPLOAD_BYTES
+        upload = UploadFile(io.BytesIO(data), filename="ok.md")
+        raw: bytes = await read_upload_bytes_limited(upload, MAX_UPLOAD_BYTES)
+        assert len(raw) == MAX_UPLOAD_BYTES
+
+    asyncio.run(run())
+
+
+def test_read_upload_bytes_limited_rejects_over_max() -> None:
+    async def run() -> None:
+        data: bytes = b"z" * (MAX_UPLOAD_BYTES + 1)
+        upload = UploadFile(io.BytesIO(data), filename="big.md")
+        with pytest.raises(HTTPException) as exc_info:
+            await read_upload_bytes_limited(upload, MAX_UPLOAD_BYTES)
+        assert exc_info.value.status_code == 413
+
+    asyncio.run(run())

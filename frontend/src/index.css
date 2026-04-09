@@ -10,6 +10,8 @@
   --app-button-hover: #f3f4f6;
   --app-editor-bg: #ffffff;
   --app-accent: #0969da;
+  --toggle-on: #2da44e;
+  --toggle-off: #cf222e;
   font-family:
     system-ui,
     -apple-system,
@@ -34,6 +36,8 @@
     --app-button-hover: #30363d;
     --app-editor-bg: #0d1117;
     --app-accent: #58a6ff;
+    --toggle-on: #3fb950;
+    --toggle-off: #f85149;
     color: #e6edf3;
     background: #0d1117;
   }

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024
+READ_CHUNK_BYTES: int = 64 * 1024
 ALLOWED_EXTENSIONS: frozenset[str] = frozenset({".md", ".markdown"})
 
 
@@ -31,6 +32,24 @@ class PreviewResponse(BaseModel):
     content: str
 
 
+async def read_upload_bytes_limited(file: UploadFile, max_bytes: int) -> bytes:
+    chunks: list[bytes] = []
+    total: int = 0
+    while True:
+        chunk: bytes = await file.read(READ_CHUNK_BYTES)
+        if not chunk:
+            break
+        next_total: int = total + len(chunk)
+        if next_total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large (max {max_bytes} bytes)",
+            )
+        total = next_total
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def validate_markdown_filename(filename: str) -> None:
     lower_name: str = filename.lower()
     if not any(lower_name.endswith(ext) for ext in ALLOWED_EXTENSIONS):
@@ -52,12 +71,7 @@ async def preview_upload(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
     validate_markdown_filename(file.filename)
-    raw: bytes = await file.read()
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File too large (max {MAX_UPLOAD_BYTES} bytes)",
-        )
+    raw: bytes = await read_upload_bytes_limited(file, MAX_UPLOAD_BYTES)
     try:
         content: str = raw.decode("utf-8")
     except UnicodeDecodeError as err:

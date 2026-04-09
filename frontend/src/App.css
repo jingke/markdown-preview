@@ -82,6 +82,11 @@
   width: 100%;
 }
 
+.app-split--source-hidden .app-preview-pane {
+  flex: 1;
+  max-width: none;
+}
+
 .app-editor-pane,
 .app-preview-pane {
   flex: 1;
@@ -100,17 +105,77 @@
   border-right: 1px solid var(--app-border);
 }
 
-.app-pane-heading {
+.app-pane-header-row {
+  display: flex;
   flex-shrink: 0;
-  margin: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  min-height: calc(1.5rem + 1rem);
   padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-toolbar-bg);
+}
+
+.app-pane-heading {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  min-height: 1.5rem;
+  margin: 0;
+  padding: 0;
   font-size: 0.75rem;
   font-weight: 600;
+  line-height: 1.5rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--app-muted);
-  border-bottom: 1px solid var(--app-border);
-  background: var(--app-toolbar-bg);
+  border: none;
+  background: transparent;
+}
+
+.source-toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.source-toggle:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.source-toggle--on {
+  background: var(--toggle-on);
+}
+
+.source-toggle--off {
+  background: var(--toggle-off);
+}
+
+.source-toggle::after {
+  content: '';
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.source-toggle--on::after {
+  transform: translateX(1.2rem);
 }
 
 .app-editor {
@@ -141,12 +206,22 @@
 .app-preview-body {
   flex: 1;
   overflow: auto;
-  padding: 1.25rem 1.5rem 2rem;
   box-sizing: border-box;
+  container-type: inline-size;
+  container-name: markdown-preview;
+  /* Gutter tracks preview pane width (container), not only the viewport */
+  padding-block: clamp(0.65rem, 0.45rem + 1.25cqw, 2rem);
+  padding-inline: clamp(0.55rem, 0.35rem + 1.75cqw, 2rem);
 }
 
 .app-preview-body .markdown-body {
-  max-width: 58rem;
+  width: 100%;
+  max-width: min(58rem, 100%);
+  margin-inline: auto;
+  box-sizing: border-box;
+  /* Base size scales with preview column; em-based headings in github-markdown follow */
+  font-size: clamp(0.8125rem, 0.62rem + 1.15cqw, 1.125rem);
+  line-height: 1.55;
 }
 
 @media (max-width: 900px) {
@@ -165,13 +240,51 @@
     flex: 1;
     min-height: 50vh;
   }
+
+  .app-split--source-hidden .app-preview-pane {
+    min-height: 0;
+    flex: 1;
+  }
 }
 
 /* Mermaid lives inside pre > div in react-markdown; normalize spacing */
+.markdown-body pre:has(.mermaid-zoom-root),
 .markdown-body pre:has(.mermaid) {
   padding: 0;
   background: transparent;
   overflow: visible;
+}
+
+.markdown-body .mermaid-zoom-root {
+  margin: 0.5rem 0;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-editor-bg);
+  overflow: hidden;
+  outline: none;
+}
+
+.markdown-body .mermaid-zoom-root:focus-visible {
+  box-shadow: 0 0 0 2px var(--app-accent);
+}
+
+.markdown-body .mermaid-zoom-viewport {
+  overflow: auto;
+  max-height: min(70vh, 560px);
+  padding: 0.5rem;
+  display: flex;
+  justify-content: center;
+  background: var(--app-editor-bg);
+}
+
+.markdown-body .mermaid-zoom-inner {
+  display: inline-block;
+}
+
+.markdown-body .mermaid-zoom-inner .mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 0;
 }
 
 .markdown-body .mermaid {

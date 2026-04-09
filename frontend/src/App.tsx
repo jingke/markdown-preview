@@ -1,4 +1,9 @@
-import { useCallback, useState, type ChangeEvent } from 'react'
+import {
+  useCallback,
+  useDeferredValue,
+  useState,
+  type ChangeEvent,
+} from 'react'
 import { MarkdownPreview } from './components/markdown_preview'
 import './App.css'
 
@@ -60,6 +65,25 @@ async function uploadMarkdownFile(file: File): Promise<string> {
   return data.content
 }
 
+function SourceVisibilitySwitch(props: {
+  isOn: boolean
+  onToggle: () => void
+  ariaControls?: string
+}) {
+  const { isOn, onToggle, ariaControls } = props
+  return (
+    <button
+      type="button"
+      role="switch"
+      className={`source-toggle ${isOn ? 'source-toggle--on' : 'source-toggle--off'}`}
+      aria-checked={isOn}
+      aria-label="Markdown source panel"
+      aria-controls={ariaControls}
+      onClick={onToggle}
+    />
+  )
+}
+
 function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader: FileReader = new FileReader()
@@ -75,12 +99,14 @@ function readFileAsText(file: File): Promise<string> {
 
 export default function App() {
   const [markdown, setMarkdown] = useState<string>(DEFAULT_MARKDOWN)
+  const previewMarkdown: string = useDeferredValue(markdown)
   const [fileName, setFileName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isSourceVisible, setIsSourceVisible] = useState<boolean>(true)
 
   const onFileSelected = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
+    async (event: ChangeEvent<HTMLInputElement>) => {
       const file: File | undefined = event.target.files?.[0]
       event.target.value = ''
       if (!file) {
@@ -99,17 +125,14 @@ export default function App() {
             setFileName(file.name)
             return
           } catch (uploadErr: unknown) {
-            if (
-              uploadErr instanceof HttpError &&
-              (uploadErr.status === 400 || uploadErr.status === 413)
-            ) {
+            if (uploadErr instanceof HttpError) {
               setError(uploadErr.message)
               return
             }
             const text: string = await readFileAsText(file)
             setMarkdown(text)
             setFileName(file.name)
-            setError('Backend unavailable; showing local file contents.')
+            setError('Could not reach the server; showing local file contents.')
             return
           }
         }
@@ -150,34 +173,60 @@ export default function App() {
         {error ? <p className="app-error">{error}</p> : null}
       </header>
       <main className="app-main">
-        <div className="app-split">
-          <section
-            className="app-editor-pane"
-            aria-labelledby="markdown-source-heading"
-          >
-            <h2 id="markdown-source-heading" className="app-pane-heading">
-              Markdown source
-            </h2>
-            <textarea
-              className="app-editor"
-              value={markdown}
-              onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
-                setMarkdown(e.target.value)
-              }}
-              spellCheck={false}
-              autoComplete="off"
-              aria-label="Edit Markdown source"
-            />
-          </section>
+        <div
+          className={
+            isSourceVisible ? 'app-split' : 'app-split app-split--source-hidden'
+          }
+        >
+          {isSourceVisible ? (
+            <section
+              id="markdown-source-panel"
+              className="app-editor-pane"
+              aria-labelledby="markdown-source-heading"
+            >
+              <div className="app-pane-header-row">
+                <h2 id="markdown-source-heading" className="app-pane-heading">
+                  Markdown source
+                </h2>
+                <SourceVisibilitySwitch
+                  isOn={isSourceVisible}
+                  onToggle={() => {
+                    setIsSourceVisible((visible: boolean) => !visible)
+                  }}
+                  ariaControls="markdown-source-panel"
+                />
+              </div>
+              <textarea
+                className="app-editor"
+                value={markdown}
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+                  setMarkdown(e.target.value)
+                }}
+                spellCheck={false}
+                autoComplete="off"
+                aria-label="Edit Markdown source"
+              />
+            </section>
+          ) : null}
           <section
             className="app-preview-pane"
             aria-labelledby="preview-heading"
           >
-            <h2 id="preview-heading" className="app-pane-heading">
-              Preview
-            </h2>
+            <div className="app-pane-header-row">
+              <h2 id="preview-heading" className="app-pane-heading">
+                Preview
+              </h2>
+              {!isSourceVisible ? (
+                <SourceVisibilitySwitch
+                  isOn={isSourceVisible}
+                  onToggle={() => {
+                    setIsSourceVisible((visible: boolean) => !visible)
+                  }}
+                />
+              ) : null}
+            </div>
             <div className="app-preview-body">
-              <MarkdownPreview markdown={markdown} />
+              <MarkdownPreview markdown={previewMarkdown} />
             </div>
           </section>
         </div>
