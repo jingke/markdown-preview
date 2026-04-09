@@ -209,14 +209,17 @@
   box-sizing: border-box;
   container-type: inline-size;
   container-name: markdown-preview;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   /* Gutter tracks preview pane width (container), not only the viewport */
   padding-block: clamp(0.65rem, 0.45rem + 1.25cqw, 2rem);
-  padding-inline: clamp(0.55rem, 0.35rem + 1.75cqw, 2rem);
+  padding-inline: clamp(0.75rem, 0.5rem + 2cqw, 2.5rem);
 }
 
 .app-preview-body .markdown-body {
   width: 100%;
-  max-width: min(58rem, 100%);
+  max-width: 100%;
   margin-inline: auto;
   box-sizing: border-box;
   /* Base size scales with preview column; em-based headings in github-markdown follow */
@@ -260,7 +263,9 @@
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-editor-bg);
-  overflow: hidden;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
   outline: none;
 }
 
@@ -269,22 +274,40 @@
 }
 
 .markdown-body .mermaid-zoom-viewport {
-  overflow: auto;
-  max-height: min(70vh, 560px);
-  padding: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 0.65rem 0.5rem;
   display: flex;
   justify-content: center;
   background: var(--app-editor-bg);
 }
 
 .markdown-body .mermaid-zoom-inner {
-  display: inline-block;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .markdown-body .mermaid-zoom-inner .mermaid {
-  display: flex;
-  justify-content: center;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
+}
+
+/* Whole diagram visible: SVG scales to preview width, height follows (scroll preview for tall charts) */
+.markdown-body .mermaid-zoom-inner .mermaid svg {
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+  margin-inline: auto;
 }
 
 .markdown-body .mermaid {

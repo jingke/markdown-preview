@@ -10,9 +10,11 @@ import mermaid from 'mermaid'
 
 let isMermaidInitialized: boolean = false
 
-/** Base diagram text size (default theme uses 16px). */
-const MERMAID_FONT_SIZE_PX: number = 20
+/** Base diagram text size; SVG scales with preview width (useMaxWidth), so labels stay proportional to the diagram. */
+const MERMAID_FONT_SIZE_PX: number = 14
 const MERMAID_THEME_FONT_SIZE: string = `${MERMAID_FONT_SIZE_PX}px`
+/** 1 = diagram fits column via SVG max-width; Ctrl/Cmd+wheel still adjusts. */
+const MERMAID_DEFAULT_ZOOM: number = 1
 
 const SCALE_MIN: number = 0.25
 const SCALE_MAX: number = 4
@@ -33,10 +35,23 @@ function ensureMermaidInitialized(): void {
     themeVariables: {
       fontSize: MERMAID_THEME_FONT_SIZE,
     },
+    flowchart: {
+      useMaxWidth: true,
+    },
     sequence: {
+      useMaxWidth: true,
       messageFontSize: MERMAID_FONT_SIZE_PX,
       noteFontSize: MERMAID_FONT_SIZE_PX - 2,
       actorFontSize: MERMAID_FONT_SIZE_PX - 2,
+    },
+    class: {
+      useMaxWidth: true,
+    },
+    state: {
+      useMaxWidth: true,
+    },
+    er: {
+      useMaxWidth: true,
     },
   })
   isMermaidInitialized = true
@@ -75,7 +90,7 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
   const zoomRootRef = useRef<HTMLDivElement>(null)
   const reactId: string = useId().replace(/:/g, '')
   const sequenceRef = useRef(0)
-  const [scale, setScale] = useState<number>(1)
+  const [scale, setScale] = useState<number>(MERMAID_DEFAULT_ZOOM)
   useLayoutEffect(() => {
     ensureMermaidInitialized()
     const el: HTMLDivElement | null = containerRef.current
