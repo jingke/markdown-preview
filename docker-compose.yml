@@ -1,0 +1,38 @@
+# Podman: use explicit localhost image names so short names are not resolved via
+# unqualified-search registries (e.g. quay.io) when the image must come from `build`.
+services:
+  backend:
+    image: localhost/markdown-preview-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      # Use host networking during build so pip can reach PyPI reliably (WSL2 / flaky bridge TLS).
+      network: host
+    ports:
+      - "8000:8000"
+    environment:
+      FRONTEND_ORIGIN: http://localhost:5173
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    image: localhost/markdown-preview-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      network: host
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
