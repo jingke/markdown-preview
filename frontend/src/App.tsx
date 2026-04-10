@@ -1,10 +1,21 @@
 import {
   useCallback,
   useDeferredValue,
+  useLayoutEffect,
+  useRef,
   useState,
   type ChangeEvent,
 } from 'react'
 import { MarkdownPreview } from './components/markdown_preview'
+import {
+  buildSectionScrollMap,
+  charIndexToTextareaScroll,
+  extractHeadingCharOffsets,
+  previewScrollToSourceChar,
+  sourceCharToPreviewScroll,
+  textareaScrollToCharIndex,
+  type SectionScrollMap,
+} from './scroll_sync'
 import './App.css'
 
 const DEFAULT_MARKDOWN: string = `# Markdown + Mermaid
@@ -98,12 +109,143 @@ function readFileAsText(file: File): Promise<string> {
 }
 
 export default function App() {
+  const appRef = useRef<HTMLDivElement>(null)
+  const toolbarRef = useRef<HTMLElement>(null)
+  const editorRef = useRef<HTMLTextAreaElement>(null)
+  const previewBodyRef = useRef<HTMLDivElement>(null)
+  const sectionMapRef = useRef<SectionScrollMap | null>(null)
+  const ignoreEditorScrollRef = useRef<boolean>(false)
+  const ignorePreviewScrollRef = useRef<boolean>(false)
   const [markdown, setMarkdown] = useState<string>(DEFAULT_MARKDOWN)
   const previewMarkdown: string = useDeferredValue(markdown)
   const [fileName, setFileName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isSourceVisible, setIsSourceVisible] = useState<boolean>(true)
+
+  useLayoutEffect(() => {
+    const toolbarEl: HTMLElement | null = toolbarRef.current
+    const appEl: HTMLDivElement | null = appRef.current
+    if (!toolbarEl || !appEl) {
+      return
+    }
+    const toolbarGapPx: number = 10
+    const syncToolbarInset = (): void => {
+      const bottom: number = toolbarEl.getBoundingClientRect().bottom
+      appEl.style.setProperty(
+        '--app-toolbar-space',
+        `${bottom + toolbarGapPx}px`,
+      )
+    }
+    syncToolbarInset()
+    const observer: ResizeObserver = new ResizeObserver(syncToolbarInset)
+    observer.observe(toolbarEl)
+    window.addEventListener('resize', syncToolbarInset)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', syncToolbarInset)
+    }
+  }, [error])
+
+  const rebuildSectionMap = useCallback((): void => {
+    const previewBody: HTMLDivElement | null = previewBodyRef.current
+    if (!previewBody) {
+      return
+    }
+    const article: Element | null = previewBody.querySelector('.markdown-body')
+    if (!article) {
+      return
+    }
+    const headingElements: HTMLElement[] = Array.from(
+      article.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'),
+    )
+    const headingOffsets: number[] = extractHeadingCharOffsets(markdown)
+    sectionMapRef.current = buildSectionScrollMap(
+      markdown,
+      headingOffsets,
+      previewBody,
+      headingElements,
+    )
+  }, [markdown])
+
+  useLayoutEffect(() => {
+    let frame: number = 0
+    frame = requestAnimationFrame(() => {
+      rebuildSectionMap()
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+    }
+  }, [rebuildSectionMap, previewMarkdown])
+
+  useLayoutEffect(() => {
+    const previewBody: HTMLDivElement | null = previewBodyRef.current
+    if (!previewBody) {
+      return
+    }
+    const observer: ResizeObserver = new ResizeObserver(() => {
+      rebuildSectionMap()
+    })
+    observer.observe(previewBody)
+    return () => {
+      observer.disconnect()
+    }
+  }, [rebuildSectionMap])
+
+  const onEditorScroll = useCallback((): void => {
+    if (!isSourceVisible || ignoreEditorScrollRef.current) {
+      return
+    }
+    const textarea: HTMLTextAreaElement | null = editorRef.current
+    const previewBody: HTMLDivElement | null = previewBodyRef.current
+    const map: SectionScrollMap | null = sectionMapRef.current
+    if (!textarea || !previewBody || !map) {
+      return
+    }
+    ignorePreviewScrollRef.current = true
+    const len: number = markdown.length
+    const charIndex: number = textareaScrollToCharIndex(textarea, len)
+    previewBody.scrollTop = sourceCharToPreviewScroll(map, charIndex)
+    requestAnimationFrame(() => {
+      ignorePreviewScrollRef.current = false
+    })
+  }, [isSourceVisible, markdown])
+
+  const onPreviewScroll = useCallback((): void => {
+    if (!isSourceVisible || ignorePreviewScrollRef.current) {
+      return
+    }
+    const textarea: HTMLTextAreaElement | null = editorRef.current
+    const previewBody: HTMLDivElement | null = previewBodyRef.current
+    const map: SectionScrollMap | null = sectionMapRef.current
+    if (!textarea || !previewBody || !map) {
+      return
+    }
+    ignoreEditorScrollRef.current = true
+    const len: number = markdown.length
+    const charIndex: number = previewScrollToSourceChar(map, previewBody.scrollTop)
+    textarea.scrollTop = charIndexToTextareaScroll(textarea, len, charIndex)
+    requestAnimationFrame(() => {
+      ignoreEditorScrollRef.current = false
+    })
+  }, [isSourceVisible, markdown])
+
+  useLayoutEffect(() => {
+    if (!isSourceVisible) {
+      return
+    }
+    const textarea: HTMLTextAreaElement | null = editorRef.current
+    const previewBody: HTMLDivElement | null = previewBodyRef.current
+    if (!textarea || !previewBody) {
+      return
+    }
+    textarea.addEventListener('scroll', onEditorScroll, { passive: true })
+    previewBody.addEventListener('scroll', onPreviewScroll, { passive: true })
+    return () => {
+      textarea.removeEventListener('scroll', onEditorScroll)
+      previewBody.removeEventListener('scroll', onPreviewScroll)
+    }
+  }, [isSourceVisible, onEditorScroll, onPreviewScroll])
 
   const onFileSelected = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -151,8 +293,8 @@ export default function App() {
   )
 
   return (
-    <div className="app">
-      <header className="app-toolbar">
+    <div className="app" ref={appRef}>
+      <header className="app-toolbar" ref={toolbarRef}>
         <h1 className="app-title">Markdown preview</h1>
         <div className="app-actions">
           <label className="file-button">
@@ -197,6 +339,7 @@ export default function App() {
                 />
               </div>
               <textarea
+                ref={editorRef}
                 className="app-editor"
                 value={markdown}
                 onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -225,7 +368,7 @@ export default function App() {
                 />
               ) : null}
             </div>
-            <div className="app-preview-body">
+            <div className="app-preview-body" ref={previewBodyRef}>
               <MarkdownPreview markdown={previewMarkdown} />
             </div>
           </section>
