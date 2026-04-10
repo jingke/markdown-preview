@@ -77,15 +77,26 @@ export function buildSectionScrollMap(
     markdown.length,
     trimmedOffsets,
   )
-  const maxPreviewScroll: number = Math.max(
+  let maxPreviewScroll: number = Math.max(
     0,
     previewContainer.scrollHeight - previewContainer.clientHeight,
   )
   const previewScrollTops: number[] = [0]
+  let prevTop: number = 0
+  const minStepPx: number = 0.5
   for (let h: number = 0; h < n; h++) {
-    previewScrollTops.push(
-      getScrollAlignTop(previewContainer, headingElements[h]),
+    let top: number = getScrollAlignTop(
+      previewContainer,
+      headingElements[h],
     )
+    if (top <= prevTop) {
+      top = prevTop + minStepPx
+    }
+    previewScrollTops.push(top)
+    prevTop = top
+  }
+  if (maxPreviewScroll <= prevTop) {
+    maxPreviewScroll = prevTop + minStepPx
   }
   previewScrollTops.push(maxPreviewScroll)
   return { sourceStarts, previewScrollTops }
@@ -136,6 +147,25 @@ export function sourceCharToPreviewScroll(
   return p0 + t * (p1 - p0)
 }
 
+/**
+ * Largest index i such that previewScrollTops[i] <= scrollTop (piecewise-linear
+ * inverse). Handles duplicate preview tops (headings map to the same scroll Y)
+ * and matches scroll-up behavior better than half-open [p0,p1) forward scans.
+ */
+function findPreviewSegmentIndex(
+  previewScrollTops: readonly number[],
+  clamped: number,
+): number {
+  let i: number = 0
+  for (let k: number = previewScrollTops.length - 2; k >= 0; k--) {
+    if (clamped >= previewScrollTops[k]) {
+      i = k
+      break
+    }
+  }
+  return i
+}
+
 /** Map preview scroll position to equivalent source character index. */
 export function previewScrollToSourceChar(
   map: SectionScrollMap,
@@ -147,19 +177,7 @@ export function previewScrollToSourceChar(
   }
   const maxP: number = previewScrollTops[previewScrollTops.length - 1]
   const clamped: number = Math.max(0, Math.min(scrollTop, maxP))
-  let i: number = previewScrollTops.length - 2
-  for (let k: number = 0; k < previewScrollTops.length - 1; k++) {
-    const p0: number = previewScrollTops[k]
-    const p1: number = previewScrollTops[k + 1]
-    const isLast: boolean = k === previewScrollTops.length - 2
-    if (
-      clamped >= p0 &&
-      (isLast ? clamped <= p1 : clamped < p1)
-    ) {
-      i = k
-      break
-    }
-  }
+  const i: number = findPreviewSegmentIndex(previewScrollTops, clamped)
   const p0: number = previewScrollTops[i]
   const p1: number = previewScrollTops[i + 1]
   const s0: number = sourceStarts[i]

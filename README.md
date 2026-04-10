@@ -62,6 +62,13 @@ podman-compose down
 - `docker-compose.yml` sets **`build.network: host`** so `pip` / `npm` use the same networking as your machine during image build. That avoids many TLS errors on WSL2 and flaky container bridges (`bad record MAC`, `ERR_SSL_CIPHER_OPERATION_FAILED`). Docker Desktop on Mac typically falls back to a normal bridge for unsupported host networking.
 - If installs still fail, retry when the network is stable; check VPN, proxy, and corporate TLS inspection. As a last resort, run `podman system prune` and rebuild to clear corrupted layer cache.
 
+**Rootless networking / D-Bus (WSL, SSH, non-login shells)**
+
+If Podman fails with `failed to move the rootless netns slirp4netns process to the systemd user.slice` or `dial unix /run/user/1000/bus: connect: no such file or directory`, rootless networking needs a **session D-Bus** socket. The helper scripts `scripts/podman-up.sh` and `scripts/podman-down.sh` source `scripts/podman-env.sh`, which sets `DBUS_SESSION_BUS_ADDRESS` when `/run/user/<uid>/bus` exists or starts a session bus via `dbus-launch` when that file is missing.
+
+- Install a D-Bus helper if needed: on Debian/Ubuntu, `sudo apt install dbus-x11` (provides `dbus-launch`) and/or `dbus-user-session`.
+- On **WSL2**, prefer enabling **systemd** so your user runtime directory and session bus are created normally: in `/etc/wsl.conf` add `[boot]` and `systemd=true`, then run `wsl --shutdown` from Windows and reopen the distro. See [Microsoft’s systemd documentation](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#systemd-support).
+
 ## Tests
 
 ### Backend (pytest)

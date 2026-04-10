@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type MutableRefObject,
 } from 'react'
 import { MarkdownPreview } from './components/markdown_preview'
 import {
@@ -17,6 +18,17 @@ import {
   type SectionScrollMap,
 } from './scroll_sync'
 import './App.css'
+
+/** Lets programmatic scroll events flush before we stop ignoring the peer pane. */
+function scheduleReleaseScrollIgnore(
+  ignoreRef: MutableRefObject<boolean>,
+): void {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      ignoreRef.current = false
+    })
+  })
+}
 
 const DEFAULT_MARKDOWN: string = `# Markdown + Mermaid
 
@@ -206,9 +218,7 @@ export default function App() {
     const len: number = markdown.length
     const charIndex: number = textareaScrollToCharIndex(textarea, len)
     previewBody.scrollTop = sourceCharToPreviewScroll(map, charIndex)
-    requestAnimationFrame(() => {
-      ignorePreviewScrollRef.current = false
-    })
+    scheduleReleaseScrollIgnore(ignorePreviewScrollRef)
   }, [isSourceVisible, markdown])
 
   const onPreviewScroll = useCallback((): void => {
@@ -225,9 +235,7 @@ export default function App() {
     const len: number = markdown.length
     const charIndex: number = previewScrollToSourceChar(map, previewBody.scrollTop)
     textarea.scrollTop = charIndexToTextareaScroll(textarea, len, charIndex)
-    requestAnimationFrame(() => {
-      ignoreEditorScrollRef.current = false
-    })
+    scheduleReleaseScrollIgnore(ignoreEditorScrollRef)
   }, [isSourceVisible, markdown])
 
   useLayoutEffect(() => {
