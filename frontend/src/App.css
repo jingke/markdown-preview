@@ -37,6 +37,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
+  width: 100%;
 }
 
 .file-button {
@@ -54,6 +55,20 @@
 
 .file-button:hover {
   background: var(--app-button-hover);
+}
+
+.file-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.file-button--secondary {
+  background: transparent;
+  color: var(--app-heading);
+}
+
+.file-button--secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--app-button-bg) 35%, transparent);
 }
 
 .file-button input[type='file'] {
@@ -77,6 +92,136 @@
   margin: 0.5rem 0 0;
   font-size: 0.875rem;
   color: var(--app-error);
+}
+
+.app-groq-settings {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0 0;
+  border-top: 1px solid var(--app-border);
+  font-size: 0.85rem;
+}
+
+.app-groq-settings__summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--app-heading);
+  list-style-position: outside;
+}
+
+.app-groq-settings__summary:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.app-groq-settings__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin-top: 0.65rem;
+}
+
+.app-groq-settings__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: min(100%, 14rem);
+  flex: 1 1 12rem;
+}
+
+.app-groq-settings__label--full {
+  flex: 1 1 100%;
+  min-width: 100%;
+}
+
+.app-groq-settings__label-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-muted);
+}
+
+.app-groq-settings__input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.875rem;
+  color: var(--app-heading);
+  background: var(--app-editor-bg);
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}
+
+.app-groq-settings__input:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+.app-groq-settings__input[readonly] {
+  cursor: text;
+  color: var(--app-muted);
+}
+
+.app-groq-settings__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--app-muted);
+  line-height: 1.4;
+}
+
+.app-groq-settings__code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+.app-groq-settings--page {
+  margin: 0;
+  padding: 0;
+  border-top: none;
+}
+
+.app--config {
+  --app-toolbar-space: 14rem;
+}
+
+.app-toolbar--config {
+  max-width: 40rem;
+}
+
+.app-config-page__header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.app-config-page__back {
+  text-decoration: none;
+}
+
+.app-config-page__title {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.app-config-page__intro {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--app-muted);
+  line-height: 1.45;
+}
+
+.app-config-page__main {
+  min-height: 0;
+}
+
+a.file-button {
+  text-decoration: none;
+}
+
+.app-toolbar__config-link {
+  margin-left: auto;
 }
 
 .app-main {
@@ -311,6 +456,7 @@
 }
 
 .markdown-body .mermaid-zoom-inner {
+  position: relative;
   display: block;
   width: 100%;
   max-width: 100%;
@@ -338,4 +484,158 @@
   display: flex;
   justify-content: center;
   margin: 0.5rem 0;
+}
+
+.markdown-body .mermaid.mermaid--render-hidden {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  margin: 0;
+}
+
+.mermaid-error-strip {
+  box-sizing: border-box;
+  min-height: 4.5rem;
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--app-border);
+  border-left: 3px solid var(--app-accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-toolbar-bg) 94%, transparent);
+}
+
+.mermaid-error-strip__header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.mermaid-error-strip__icon {
+  flex-shrink: 0;
+  color: var(--app-error);
+}
+
+.mermaid-error-strip__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--app-heading);
+}
+
+.mermaid-error-strip__message {
+  margin: 0 0 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--app-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mermaid-error-strip__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mermaid-ai-fix-button {
+  color: var(--app-accent);
+  border-color: var(--app-accent);
+}
+
+.mermaid-ai-fix-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.mermaid-error-strip__attempt {
+  font-size: 0.75rem;
+  color: var(--app-muted);
+}
+
+.mermaid-error-strip__config,
+.mermaid-error-strip__fetch {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--app-error);
+}
+
+.mermaid-ai-revert-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--app-toolbar-bg) 92%, transparent);
+}
+
+.mermaid-ai-revert-banner__text {
+  flex: 1;
+  min-width: 8rem;
+  font-size: 0.85rem;
+  color: var(--app-heading);
+}
+
+.mermaid-ai-revert-banner__undo,
+.mermaid-ai-revert-banner__dismiss {
+  flex-shrink: 0;
+}
+
+@media print {
+  .app-toolbar {
+    display: none !important;
+  }
+
+  .app {
+    padding-top: 0 !important;
+    min-height: auto;
+  }
+
+  .app-main {
+    padding-inline: 0;
+  }
+
+  .app-editor-pane {
+    display: none !important;
+  }
+
+  .app-split {
+    flex-direction: column;
+  }
+
+  .app-split--source-hidden .app-preview-pane {
+    max-width: none;
+  }
+
+  .app-pane-header-row {
+    display: none !important;
+  }
+
+  .mermaid-ai-revert-banner {
+    display: none !important;
+  }
+
+  .app-preview-pane {
+    background: transparent;
+  }
+
+  .app-preview-body {
+    overflow: visible;
+    padding-block: 0;
+    padding-inline: 0;
+    align-items: stretch;
+  }
+
+  .app-preview-body .markdown-body {
+    font-size: 12pt;
+    line-height: 1.5;
+    max-width: 100%;
+  }
 }

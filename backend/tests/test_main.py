@@ -1,5 +1,6 @@
 import asyncio
 import io
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -79,6 +80,95 @@ def test_validate_markdown_filename_rejects_pdf() -> None:
 def test_openapi_docs_available(client: TestClient) -> None:
     response = client.get("/docs")
     assert response.status_code == 200
+
+
+def test_mermaid_ai_fix_returns_503_when_groq_key_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    response = client.post(
+        "/api/mermaid/ai-fix",
+        json={
+            "chart": "flowchart LR\nA-->B",
+            "error_message": "test error",
+            "attempt_index": 0,
+        },
+    )
+    assert response.status_code == 503
+    assert "Groq API key" in response.json()["detail"]
+
+
+def test_mermaid_ai_fix_uses_key_from_request_body_when_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "choices": [{"message": {"content": "flowchart LR\n  X --> Y"}}]
+    }
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    with patch("app.main.httpx.AsyncClient") as mock_ac:
+        mock_ac.return_value.__aenter__.return_value = mock_client
+        mock_ac.return_value.__aexit__.return_value = None
+        response = client.post(
+            "/api/mermaid/ai-fix",
+            json={
+                "chart": "flowchart LR\nA-->B",
+                "error_message": "e",
+                "attempt_index": 0,
+                "groq_api_key": "from-body",
+                "groq_model": "custom-model-id",
+            },
+        )
+    assert response.status_code == 200
+    assert response.json() == {"fixed_chart": "flowchart LR\n  X --> Y"}
+    call_kw = mock_client.post.call_args
+    assert call_kw is not None
+    sent_payload: dict = call_kw[1]["json"]
+    assert sent_payload["model"] == "custom-model-id"
+    sent_headers: dict[str, str] = call_kw[1]["headers"]
+    assert sent_headers["Authorization"] == "Bearer from-body"
+
+
+def test_mermaid_ai_fix_returns_fixed_chart_when_groq_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+    client: TestClient,
+) -> None:
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "choices": [{"message": {"content": "flowchart LR\n  A --> B"}}]
+    }
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+    with patch("app.main.httpx.AsyncClient") as mock_ac:
+        mock_ac.return_value.__aenter__.return_value = mock_client
+        mock_ac.return_value.__aexit__.return_value = None
+        response = client.post(
+            "/api/mermaid/ai-fix",
+            json={
+                "chart": "flowchart bad",
+                "error_message": "parse error",
+                "attempt_index": 0,
+            },
+        )
+    assert response.status_code == 200
+    assert response.json() == {"fixed_chart": "flowchart LR\n  A --> B"}
+
+
+def test_mermaid_ai_fix_rejects_oversized_chart(client: TestClient) -> None:
+    huge: str = "x" * (33_000)
+    response = client.post(
+        "/api/mermaid/ai-fix",
+        json={"chart": huge, "error_message": "e"},
+    )
+    assert response.status_code == 400
+    assert "large" in response.json()["detail"].lower()
 
 
 def test_read_upload_bytes_limited_accepts_exact_max() -> None:
