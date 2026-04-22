@@ -8,3 +8,11 @@ class ResizeObserverMock {
 }
 
 globalThis.ResizeObserver = ResizeObserverMock
+
+/** jsdom URL may omit Blob helpers used by downloads. */
+if (typeof URL.createObjectURL !== 'function') {
+  URL.createObjectURL = (): string => 'blob:vitest-mock-url'
+}
+if (typeof URL.revokeObjectURL !== 'function') {
+  URL.revokeObjectURL = (): void => {}
+}
