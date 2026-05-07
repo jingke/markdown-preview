@@ -61,39 +61,17 @@ describe('App', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens export menu and saves PDF via print', async () => {
+  it('exports PDF via print', async () => {
     const printSpy: ReturnType<typeof vi.spyOn> = vi
       .spyOn(window, 'print')
       .mockImplementation(() => {})
     const user = userEvent.setup()
     renderApp()
-    await user.click(screen.getByRole('button', { name: /export menu/i }))
-    await user.click(screen.getByRole('menuitem', { name: /save as pdf/i }))
+    await user.click(
+      screen.getByRole('button', { name: /export preview as pdf/i }),
+    )
     expect(printSpy).toHaveBeenCalled()
     printSpy.mockRestore()
-  })
-
-  it('downloads draw.io xml from export menu', async () => {
-    const user = userEvent.setup()
-    const clickSpy: ReturnType<typeof vi.spyOn> = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => {})
-    const createSpy: ReturnType<typeof vi.spyOn> = vi
-      .spyOn(URL, 'createObjectURL')
-      .mockReturnValue('blob:mock')
-    const revokeSpy: ReturnType<typeof vi.spyOn> = vi
-      .spyOn(URL, 'revokeObjectURL')
-      .mockImplementation(() => {})
-    renderApp()
-    await user.click(screen.getByRole('button', { name: /export menu/i }))
-    await user.click(
-      screen.getByRole('menuitem', { name: /draw\.io document/i }),
-    )
-    expect(createSpy).toHaveBeenCalled()
-    expect(clickSpy).toHaveBeenCalled()
-    clickSpy.mockRestore()
-    createSpy.mockRestore()
-    revokeSpy.mockRestore()
   })
 
   it('shows empty export message when PDF export has no content', async () => {
@@ -103,8 +81,9 @@ describe('App', () => {
       name: /edit markdown source/i,
     })
     fireEvent.change(editor, { target: { value: '   ' } })
-    await user.click(screen.getByRole('button', { name: /export menu/i }))
-    await user.click(screen.getByRole('menuitem', { name: /save as pdf/i }))
+    await user.click(
+      screen.getByRole('button', { name: /export preview as pdf/i }),
+    )
     expect(screen.getByText(/nothing to export/i)).toBeInTheDocument()
   })
 

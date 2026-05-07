@@ -21,12 +21,6 @@ import {
   textareaScrollToCharIndex,
   type SectionScrollMap,
 } from './scroll_sync'
-import {
-  buildDocumentLabelFromFileName,
-  buildDrawIoDownloadFileName,
-  buildDrawIoMarkdownDocument,
-  triggerDrawIoDownload,
-} from './export_draw_io'
 import './App.css'
 
 /** Lets programmatic scroll events flush before we stop ignoring the peer pane. */
@@ -158,8 +152,6 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
     previousSlice: string
     postFixSlice: string
   } | null>(null)
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false)
-  const exportMenuRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     const toolbarEl: HTMLElement | null = toolbarRef.current
@@ -190,34 +182,6 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
       setError(null)
     }
   }, [markdown, error])
-
-  useEffect(() => {
-    if (!isExportMenuOpen) {
-      return
-    }
-    const onPointerDown = (event: PointerEvent): void => {
-      const root: HTMLDivElement | null = exportMenuRef.current
-      if (
-        !root ||
-        !(event.target instanceof Node) ||
-        root.contains(event.target)
-      ) {
-        return
-      }
-      setIsExportMenuOpen(false)
-    }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        setIsExportMenuOpen(false)
-      }
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [isExportMenuOpen])
 
   const rebuildSectionMap = useCallback((): void => {
     const previewBody: HTMLDivElement | null = previewBodyRef.current
@@ -428,33 +392,13 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
     [],
   )
 
-  const closeExportMenu = useCallback((): void => {
-    setIsExportMenuOpen(false)
-  }, [])
-
   const onExportPdf = useCallback((): void => {
-    closeExportMenu()
     if (markdown.trim() === '') {
       setError(EMPTY_EXPORT_MESSAGE)
       return
     }
     window.print()
-  }, [markdown, closeExportMenu])
-
-  const onExportDrawIo = useCallback((): void => {
-    closeExportMenu()
-    if (markdown.trim() === '') {
-      setError(EMPTY_EXPORT_MESSAGE)
-      return
-    }
-    setError(null)
-    const xml: string = buildDrawIoMarkdownDocument({
-      markdown,
-      documentLabel: buildDocumentLabelFromFileName(fileName),
-      modifiedIso: new Date().toISOString(),
-    })
-    triggerDrawIoDownload(xml, buildDrawIoDownloadFileName(fileName))
-  }, [markdown, fileName, closeExportMenu])
+  }, [markdown])
 
   return (
     <div className="app" ref={appRef}>
@@ -475,82 +419,16 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
               {fileName}
             </span>
           ) : null}
-          <div className="export-menu" ref={exportMenuRef}>
-            <button
-              type="button"
-              className="file-button file-button--secondary export-menu__trigger"
-              aria-haspopup="menu"
-              aria-expanded={isExportMenuOpen}
-              aria-controls={
-                isExportMenuOpen ? 'export-menu-panel' : undefined
-              }
-              aria-label="Export menu"
-              id="export-menu-trigger"
-              disabled={isLoading}
-              title="Export Markdown in another format"
-              onClick={() => {
-                setIsExportMenuOpen((open: boolean) => !open)
-              }}
-            >
-              <span className="export-menu__trigger-text" aria-hidden="true">
-                Export
-              </span>
-              <svg
-                className={
-                  isExportMenuOpen
-                    ? 'export-menu__chevron export-menu__chevron--open'
-                    : 'export-menu__chevron'
-                }
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
-              >
-                <path
-                  d="M6 9l6 6 6-6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            {isExportMenuOpen ? (
-              <div
-                id="export-menu-panel"
-                className="export-menu__panel"
-                role="menu"
-                aria-labelledby="export-menu-trigger"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="export-menu__item"
-                  onClick={onExportPdf}
-                >
-                  <span className="export-menu__item-title">Save as PDF…</span>
-                  <span className="export-menu__item-desc">
-                    Opens the print dialog; choose Save as PDF
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="export-menu__item"
-                  onClick={onExportDrawIo}
-                >
-                  <span className="export-menu__item-title">
-                    draw.io document (.drawio)
-                  </span>
-                  <span className="export-menu__item-desc">
-                    One page with your Markdown in an editable text shape
-                  </span>
-                </button>
-              </div>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            className="file-button file-button--secondary"
+            title="Uses your browser's print dialog; choose Save as PDF"
+            aria-label="Export preview as PDF using the print dialog"
+            disabled={isLoading}
+            onClick={onExportPdf}
+          >
+            Export PDF
+          </button>
           <Link className="file-button app-toolbar__config-link" to="/settings">
             Configuration
           </Link>
