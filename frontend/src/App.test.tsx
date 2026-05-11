@@ -36,6 +36,40 @@ function renderApp() {
   )
 }
 
+function readBlobText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader: FileReader = new FileReader()
+    reader.onload = (): void => {
+      resolve(String(reader.result))
+    }
+    reader.onerror = (): void => {
+      reject(new Error('Could not read blob'))
+    }
+    reader.readAsText(blob)
+  })
+}
+
+function installDownloadSpies(): {
+  createObjectUrl: ReturnType<typeof vi.fn>
+  revokeObjectUrl: ReturnType<typeof vi.fn>
+  clickAnchor: ReturnType<typeof vi.spyOn>
+} {
+  const createObjectUrl = vi.fn().mockReturnValue('blob:mermaid-svg')
+  const revokeObjectUrl = vi.fn()
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: createObjectUrl,
+  })
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: revokeObjectUrl,
+  })
+  const clickAnchor = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
+  return { createObjectUrl, revokeObjectUrl, clickAnchor }
+}
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -85,6 +119,76 @@ describe('App', () => {
       screen.getByRole('button', { name: /export preview as pdf/i }),
     )
     expect(screen.getByText(/nothing to export/i)).toBeInTheDocument()
+  })
+
+  it('disables export-all SVG when no mermaid diagram is rendered', async () => {
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, { target: { value: '# No diagrams' } })
+    const exportButton: HTMLButtonElement = await screen.findByRole('button', {
+      name: /export all rendered mermaid diagrams as svg/i,
+    })
+    expect(exportButton).toBeDisabled()
+  })
+
+  it('exports every rendered mermaid diagram as SVG files', async () => {
+    const user = userEvent.setup()
+    const { createObjectUrl, revokeObjectUrl, clickAnchor } =
+      installDownloadSpies()
+    mockRender.mockImplementation(
+      async (_id: string, chart: string): Promise<typeof MERMAID_OK_SVG> => {
+        if (chart.includes('sequenceDiagram')) {
+          return {
+            svg: '<svg data-testid="second-svg"></svg>',
+            bindFunctions: undefined,
+          }
+        }
+        if (chart.includes('A-->B')) {
+          return {
+            svg: '<svg data-testid="first-svg"></svg>',
+            bindFunctions: undefined,
+          }
+        }
+        return MERMAID_OK_SVG
+      },
+    )
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, {
+      target: {
+        value: `# Two diagrams
+
+\`\`\`mermaid
+flowchart LR
+  A-->B
+\`\`\`
+
+\`\`\`mermaid
+sequenceDiagram
+  Alice->>Bob: Hi
+\`\`\`
+`,
+      },
+    })
+    const exportButton: HTMLButtonElement = await screen.findByRole('button', {
+      name: /export all rendered mermaid diagrams as svg/i,
+    })
+    await waitFor(() => {
+      expect(exportButton).toBeEnabled()
+    })
+    await user.click(exportButton)
+    expect(createObjectUrl).toHaveBeenCalledTimes(2)
+    const firstBlob: Blob = createObjectUrl.mock.calls[0][0] as Blob
+    const secondBlob: Blob = createObjectUrl.mock.calls[1][0] as Blob
+    await expect(readBlobText(firstBlob)).resolves.toContain('first-svg')
+    await expect(readBlobText(secondBlob)).resolves.toContain('second-svg')
+    expect(clickAnchor).toHaveBeenCalledTimes(2)
+    expect(revokeObjectUrl).toHaveBeenCalledTimes(2)
+    clickAnchor.mockRestore()
   })
 
   it('renders toolbar title and default markdown', () => {

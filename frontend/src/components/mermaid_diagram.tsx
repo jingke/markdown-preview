@@ -9,6 +9,10 @@ import {
 } from 'react'
 import mermaid from 'mermaid'
 import type { MermaidFenceReplaceArgs } from './markdown_preview'
+import {
+  downloadSvgFile,
+  type MermaidSvgExportChangeHandler,
+} from '../mermaid_svg_export'
 
 let isMermaidInitialized: boolean = false
 
@@ -98,6 +102,10 @@ export interface MermaidDiagramProps {
   onFenceReplaced?: (args: MermaidFenceReplaceArgs) => void
   groqApiKey?: string
   groqModel?: string
+  exportId?: string
+  exportFileName?: string
+  exportOrder?: number
+  onSvgExportChange?: MermaidSvgExportChangeHandler
 }
 
 function WarningIcon() {
@@ -122,8 +130,18 @@ function WarningIcon() {
 }
 
 export function MermaidDiagram(props: MermaidDiagramProps) {
-  const { chart, sourceRange, expectedFence, onFenceReplaced, groqApiKey, groqModel } =
-    props
+  const {
+    chart,
+    sourceRange,
+    expectedFence,
+    onFenceReplaced,
+    groqApiKey,
+    groqModel,
+    exportId,
+    exportFileName = 'mermaid-diagram.svg',
+    exportOrder = 0,
+    onSvgExportChange,
+  } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const zoomRootRef = useRef<HTMLDivElement>(null)
   const reactId: string = useId().replace(/:/g, '')
@@ -136,6 +154,7 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false)
   const [attemptLabel, setAttemptLabel] = useState<string | null>(null)
   const [loopExhausted, setLoopExhausted] = useState<boolean>(false)
+  const [latestSvg, setLatestSvg] = useState<string | null>(null)
 
   useLayoutEffect(() => {
     ensureMermaidInitialized()
@@ -149,6 +168,10 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
     setAiFetchError(null)
     setConfigError(null)
     setLoopExhausted(false)
+    setLatestSvg(null)
+    if (exportId !== undefined) {
+      onSvgExportChange?.(exportId, null)
+    }
     clearContainer(el)
     void (async () => {
       try {
@@ -166,9 +189,22 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
           return
         }
         bindFunctions?.(el)
+        setLatestSvg(svg)
+        if (exportId !== undefined) {
+          onSvgExportChange?.(exportId, {
+            id: exportId,
+            svg,
+            fileName: exportFileName,
+            order: exportOrder,
+          })
+        }
       } catch (err) {
         if (!cancelled && el.isConnected) {
           clearContainer(el)
+          setLatestSvg(null)
+          if (exportId !== undefined) {
+            onSvgExportChange?.(exportId, null)
+          }
           const msg: string = err instanceof Error ? err.message : String(err)
           setRenderError(msg)
         }
@@ -176,9 +212,12 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
     })()
     return () => {
       cancelled = true
+      if (exportId !== undefined) {
+        onSvgExportChange?.(exportId, null)
+      }
       clearContainer(el)
     }
-  }, [chart, reactId])
+  }, [chart, reactId, exportFileName, exportId, exportOrder, onSvgExportChange])
 
   useEffect(() => {
     const root: HTMLDivElement | null = zoomRootRef.current
@@ -321,6 +360,14 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
     : ''
 
   const showErrorChrome: boolean = renderError !== null
+  const canExportSvg: boolean = !showErrorChrome && latestSvg !== null
+
+  const onExportSvg = useCallback((): void => {
+    if (latestSvg === null) {
+      return
+    }
+    downloadSvgFile(latestSvg, exportFileName)
+  }, [exportFileName, latestSvg])
 
   return (
     <div
@@ -330,6 +377,17 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
       tabIndex={0}
       aria-label="Mermaid diagram; hold Ctrl or Command and scroll the mouse wheel to zoom"
     >
+      {canExportSvg ? (
+        <div className="mermaid-export-actions">
+          <button
+            type="button"
+            className="file-button file-button--secondary mermaid-export-button"
+            onClick={onExportSvg}
+          >
+            Export SVG
+          </button>
+        </div>
+      ) : null}
       <div className="mermaid-zoom-viewport">
         <div className="mermaid-zoom-inner">
           {showErrorChrome ? (

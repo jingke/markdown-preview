@@ -3,6 +3,7 @@ import {
   useDeferredValue,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -12,6 +13,10 @@ import { Link } from 'react-router-dom'
 import { MarkdownPreview } from './components/markdown_preview'
 import type { MermaidFenceReplaceArgs } from './components/markdown_preview'
 import { buildMermaidFence } from './mermaid_fence'
+import {
+  downloadSvgFile,
+  type MermaidSvgExportRecord,
+} from './mermaid_svg_export'
 import {
   buildSectionScrollMap,
   charIndexToTextareaScroll,
@@ -152,6 +157,18 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
     previousSlice: string
     postFixSlice: string
   } | null>(null)
+  const [mermaidSvgExports, setMermaidSvgExports] = useState<
+    Map<string, MermaidSvgExportRecord>
+  >(() => new Map())
+
+  const mermaidSvgExportList: MermaidSvgExportRecord[] = useMemo(
+    () =>
+      Array.from(mermaidSvgExports.values()).sort(
+        (left: MermaidSvgExportRecord, right: MermaidSvgExportRecord) =>
+          left.order - right.order,
+      ),
+    [mermaidSvgExports],
+  )
 
   useLayoutEffect(() => {
     const toolbarEl: HTMLElement | null = toolbarRef.current
@@ -182,6 +199,10 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
       setError(null)
     }
   }, [markdown, error])
+
+  useEffect(() => {
+    setMermaidSvgExports(new Map())
+  }, [markdown])
 
   const rebuildSectionMap = useCallback((): void => {
     const previewBody: HTMLDivElement | null = previewBodyRef.current
@@ -400,6 +421,29 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
     window.print()
   }, [markdown])
 
+  const onMermaidSvgExportChange = useCallback(
+    (id: string, record: MermaidSvgExportRecord | null): void => {
+      setMermaidSvgExports((previous: Map<string, MermaidSvgExportRecord>) => {
+        const next: Map<string, MermaidSvgExportRecord> = new Map(previous)
+        if (record === null) {
+          next.delete(id)
+          return next
+        }
+        next.set(id, record)
+        return next
+      })
+    },
+    [],
+  )
+
+  const onExportMermaidSvgs = useCallback((): void => {
+    mermaidSvgExportList.forEach(
+      (record: MermaidSvgExportRecord, index: number): void => {
+        downloadSvgFile(record.svg, `mermaid-diagram-${index + 1}.svg`)
+      },
+    )
+  }, [mermaidSvgExportList])
+
   return (
     <div className="app" ref={appRef}>
       <header className="app-toolbar" ref={toolbarRef}>
@@ -428,6 +472,16 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
             onClick={onExportPdf}
           >
             Export PDF
+          </button>
+          <button
+            type="button"
+            className="file-button file-button--secondary"
+            title="Downloads each rendered Mermaid diagram as an SVG file"
+            aria-label="Export all rendered Mermaid diagrams as SVG"
+            disabled={isLoading || mermaidSvgExportList.length === 0}
+            onClick={onExportMermaidSvgs}
+          >
+            Export Mermaid SVGs
           </button>
           <Link className="file-button app-toolbar__config-link" to="/settings">
             Configuration
@@ -521,6 +575,7 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
                 onMermaidFenceReplace={onMermaidFenceReplace}
                 groqApiKey={groqApiKey}
                 groqModel={groqModel}
+                onMermaidSvgExportChange={onMermaidSvgExportChange}
               />
             </div>
           </section>

@@ -5,6 +5,7 @@ import type { ExtraProps } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { MermaidDiagram } from './mermaid_diagram'
+import type { MermaidSvgExportChangeHandler } from '../mermaid_svg_export'
 
 export interface MermaidFenceReplaceArgs {
   sourceRange: { start: number; end: number }
@@ -17,6 +18,7 @@ export interface MarkdownPreviewProps {
   onMermaidFenceReplace?: (args: MermaidFenceReplaceArgs) => void
   groqApiKey?: string
   groqModel?: string
+  onMermaidSvgExportChange?: MermaidSvgExportChangeHandler
 }
 
 const LANGUAGE_PATTERN: RegExp = /language-(\w+)/
@@ -32,6 +34,7 @@ function createMarkdownComponents(
   onMermaidFenceReplace?: (args: MermaidFenceReplaceArgs) => void,
   groqApiKey?: string,
   groqModel?: string,
+  onMermaidSvgExportChange?: MermaidSvgExportChangeHandler,
 ): Components {
   return {
     code(props: MarkdownCodeProps) {
@@ -49,6 +52,11 @@ function createMarkdownComponents(
           sourceRange !== null
             ? markdown.slice(sourceRange.start, sourceRange.end)
             : undefined
+        const exportKey: string =
+          sourceRange !== null
+            ? `${sourceRange.start}-${sourceRange.end}`
+            : text
+        const exportOrder: number = sourceRange?.start ?? Number.MAX_SAFE_INTEGER
         return (
           <MermaidDiagram
             chart={text}
@@ -57,6 +65,10 @@ function createMarkdownComponents(
             onFenceReplaced={onMermaidFenceReplace}
             groqApiKey={groqApiKey}
             groqModel={groqModel}
+            exportId={`mermaid-${exportKey}`}
+            exportFileName={`mermaid-diagram-${exportOrder + 1}.svg`}
+            exportOrder={exportOrder}
+            onSvgExportChange={onMermaidSvgExportChange}
           />
         )
       }
@@ -70,7 +82,13 @@ function createMarkdownComponents(
 }
 
 export function MarkdownPreview(props: MarkdownPreviewProps) {
-  const { markdown, onMermaidFenceReplace, groqApiKey, groqModel } = props
+  const {
+    markdown,
+    onMermaidFenceReplace,
+    groqApiKey,
+    groqModel,
+    onMermaidSvgExportChange,
+  } = props
   const components: Components = useMemo(
     () =>
       createMarkdownComponents(
@@ -78,8 +96,15 @@ export function MarkdownPreview(props: MarkdownPreviewProps) {
         onMermaidFenceReplace,
         groqApiKey,
         groqModel,
+        onMermaidSvgExportChange,
       ),
-    [markdown, onMermaidFenceReplace, groqApiKey, groqModel],
+    [
+      markdown,
+      onMermaidFenceReplace,
+      groqApiKey,
+      groqModel,
+      onMermaidSvgExportChange,
+    ],
   )
   return (
     <article className="markdown-body">

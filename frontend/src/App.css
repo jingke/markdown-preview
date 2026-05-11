@@ -442,6 +442,17 @@ a.file-button {
   box-shadow: 0 0 0 2px var(--app-accent);
 }
 
+.markdown-body .mermaid-export-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.45rem 0.5rem 0;
+}
+
+.markdown-body .mermaid-export-button {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.55rem;
+}
+
 .markdown-body .mermaid-zoom-viewport {
   width: 100%;
   max-width: 100%;
