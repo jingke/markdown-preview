@@ -236,6 +236,8 @@ a.file-button {
 }
 
 .app-split {
+  --app-source-size: 50%;
+  --app-splitter-width: 0.625rem;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -262,7 +264,73 @@ a.file-button {
 }
 
 .app-editor-pane {
-  border-right: 1px solid var(--app-border);
+  flex: 0 0
+    calc(var(--app-source-size) - var(--app-splitter-width) / 2);
+}
+
+.app-splitter {
+  position: relative;
+  flex: 0 0 var(--app-splitter-width);
+  align-self: stretch;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.app-splitter::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--app-border);
+  transition: width 0.15s ease, background-color 0.15s ease;
+}
+
+.app-splitter::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--app-splitter-width);
+  height: 2.5rem;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--app-accent);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.app-splitter:hover::before,
+.app-splitter:focus-visible::before,
+.app-splitter--dragging::before {
+  width: 3px;
+  background: var(--app-accent);
+}
+
+.app-splitter:hover::after,
+.app-splitter:focus-visible::after,
+.app-splitter--dragging::after {
+  opacity: 1;
+}
+
+.app-splitter:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: -2px;
+}
+
+.app-split--dragging {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.app-split--dragging .app-editor-pane,
+.app-split--dragging .app-preview-pane {
+  pointer-events: none;
 }
 
 .app-pane-header-row {
@@ -402,10 +470,14 @@ a.file-button {
   }
 
   .app-editor-pane {
-    border-right: none;
     border-bottom: 1px solid var(--app-border);
     flex: 0 0 min(40vh, 22rem);
     max-height: min(40vh, 22rem);
+  }
+
+  /* Stacked panes: the inline-axis drag handle no longer maps to the layout */
+  .app-splitter {
+    display: none;
   }
 
   .app-preview-pane {
@@ -613,7 +685,8 @@ a.file-button {
     padding-inline: 0;
   }
 
-  .app-editor-pane {
+  .app-editor-pane,
+  .app-splitter {
     display: none !important;
   }
 

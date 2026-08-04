@@ -7,12 +7,19 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type MutableRefObject,
 } from 'react'
 import { Link } from 'react-router-dom'
 import { MarkdownPreview } from './components/markdown_preview'
 import type { MermaidFenceReplaceArgs } from './components/markdown_preview'
+import { PaneSplitter } from './components/pane_splitter'
 import { buildMermaidFence } from './mermaid_fence'
+import {
+  DEFAULT_SOURCE_RATIO,
+  persistSourceRatio,
+  readSourceRatioFromStorage,
+} from './split_ratio'
 import {
   downloadSvgFile,
   type MermaidSvgExportRecord,
@@ -141,6 +148,7 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
   const { groqApiKey, groqModel } = props
   const appRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLElement>(null)
+  const splitRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const previewBodyRef = useRef<HTMLDivElement>(null)
   const sectionMapRef = useRef<SectionScrollMap | null>(null)
@@ -152,6 +160,9 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isSourceVisible, setIsSourceVisible] = useState<boolean>(true)
+  const [sourceRatio, setSourceRatio] = useState<number>(
+    readSourceRatioFromStorage,
+  )
   const [mermaidAiRevert, setMermaidAiRevert] = useState<{
     range: { start: number; end: number }
     previousSlice: string
@@ -193,6 +204,14 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
       window.removeEventListener('resize', syncToolbarInset)
     }
   }, [error])
+
+  useEffect(() => {
+    persistSourceRatio(sourceRatio)
+  }, [sourceRatio])
+
+  const onResetSourceRatio = useCallback((): void => {
+    setSourceRatio(DEFAULT_SOURCE_RATIO)
+  }, [])
 
   useEffect(() => {
     if (markdown.trim() !== '' && error === EMPTY_EXPORT_MESSAGE) {
@@ -491,8 +510,14 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
       </header>
       <main className="app-main">
         <div
+          ref={splitRef}
           className={
             isSourceVisible ? 'app-split' : 'app-split app-split--source-hidden'
+          }
+          style={
+            {
+              '--app-source-size': `${(sourceRatio * 100).toFixed(3)}%`,
+            } as CSSProperties
           }
         >
           {isSourceVisible ? (
@@ -526,6 +551,15 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
                 aria-label="Edit Markdown source"
               />
             </section>
+          ) : null}
+          {isSourceVisible ? (
+            <PaneSplitter
+              ratio={sourceRatio}
+              onRatioChange={setSourceRatio}
+              onResetRatio={onResetSourceRatio}
+              containerRef={splitRef}
+              ariaControls="markdown-source-panel"
+            />
           ) : null}
           <section
             className="app-preview-pane"
