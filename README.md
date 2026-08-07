@@ -34,7 +34,7 @@ npm run dev
 
 Open the printed URL (usually `http://localhost:5173`). The dev server proxies `/api` and `/health` to `http://127.0.0.1:8000`.
 
-Use **Choose .md file** to upload a Markdown file. If the API is down, the app still previews the file locally and shows a short notice.
+Use **Choose .md file** to upload a Markdown file. If the API is down, the app still previews the file locally and shows a short notice. Rendered Mermaid diagrams can be downloaded individually with **Export SVG**, or all at once with **Export Mermaid SVGs**.
 
 ## Run with Podman (containers)
 

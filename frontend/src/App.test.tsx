@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -6,19 +7,69 @@ import {
   waitFor,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const MERMAID_OK_SVG: { svg: string; bindFunctions: undefined } = {
+  svg: '<svg data-testid="mock-svg"></svg>',
+  bindFunctions: undefined,
+}
+
+const { mockInitialize, mockRender } = vi.hoisted(() => ({
+  mockInitialize: vi.fn(),
+  mockRender: vi.fn(),
+}))
 
 vi.mock('mermaid', () => ({
   default: {
-    initialize: vi.fn(),
-    render: vi.fn().mockResolvedValue({
-      svg: '<svg data-testid="mock-svg"></svg>',
-      bindFunctions: undefined,
-    }),
+    initialize: mockInitialize,
+    render: mockRender,
   },
 }))
 
 import App from './App'
+
+function renderApp() {
+  return render(
+    <MemoryRouter>
+      <App />
+    </MemoryRouter>,
+  )
+}
+
+function readBlobText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader: FileReader = new FileReader()
+    reader.onload = (): void => {
+      resolve(String(reader.result))
+    }
+    reader.onerror = (): void => {
+      reject(new Error('Could not read blob'))
+    }
+    reader.readAsText(blob)
+  })
+}
+
+function installDownloadSpies(): {
+  createObjectUrl: ReturnType<typeof vi.fn>
+  revokeObjectUrl: ReturnType<typeof vi.fn>
+  clickAnchor: ReturnType<typeof vi.spyOn>
+} {
+  const createObjectUrl = vi.fn().mockReturnValue('blob:mermaid-svg')
+  const revokeObjectUrl = vi.fn()
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: createObjectUrl,
+  })
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: revokeObjectUrl,
+  })
+  const clickAnchor = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
+  return { createObjectUrl, revokeObjectUrl, clickAnchor }
+}
 
 afterEach(() => {
   cleanup()
@@ -26,8 +77,123 @@ afterEach(() => {
 })
 
 describe('App', () => {
+  beforeEach(() => {
+    mockInitialize.mockClear()
+    mockRender.mockReset()
+    mockRender.mockResolvedValue(MERMAID_OK_SVG)
+  })
+
+  it('navigates to configuration page and back', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await user.click(screen.getByRole('link', { name: /^configuration$/i }))
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Configuration' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: /back to preview/i }))
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Markdown preview' }),
+    ).toBeInTheDocument()
+  })
+
+  it('exports PDF via print', async () => {
+    const printSpy: ReturnType<typeof vi.spyOn> = vi
+      .spyOn(window, 'print')
+      .mockImplementation(() => {})
+    const user = userEvent.setup()
+    renderApp()
+    await user.click(
+      screen.getByRole('button', { name: /export preview as pdf/i }),
+    )
+    expect(printSpy).toHaveBeenCalled()
+    printSpy.mockRestore()
+  })
+
+  it('shows empty export message when PDF export has no content', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, { target: { value: '   ' } })
+    await user.click(
+      screen.getByRole('button', { name: /export preview as pdf/i }),
+    )
+    expect(screen.getByText(/nothing to export/i)).toBeInTheDocument()
+  })
+
+  it('disables export-all SVG when no mermaid diagram is rendered', async () => {
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, { target: { value: '# No diagrams' } })
+    const exportButton: HTMLButtonElement = await screen.findByRole('button', {
+      name: /export all rendered mermaid diagrams as svg/i,
+    })
+    expect(exportButton).toBeDisabled()
+  })
+
+  it('exports every rendered mermaid diagram as SVG files', async () => {
+    const user = userEvent.setup()
+    const { createObjectUrl, revokeObjectUrl, clickAnchor } =
+      installDownloadSpies()
+    mockRender.mockImplementation(
+      async (_id: string, chart: string): Promise<typeof MERMAID_OK_SVG> => {
+        if (chart.includes('sequenceDiagram')) {
+          return {
+            svg: '<svg data-testid="second-svg"></svg>',
+            bindFunctions: undefined,
+          }
+        }
+        if (chart.includes('A-->B')) {
+          return {
+            svg: '<svg data-testid="first-svg"></svg>',
+            bindFunctions: undefined,
+          }
+        }
+        return MERMAID_OK_SVG
+      },
+    )
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, {
+      target: {
+        value: `# Two diagrams
+
+\`\`\`mermaid
+flowchart LR
+  A-->B
+\`\`\`
+
+\`\`\`mermaid
+sequenceDiagram
+  Alice->>Bob: Hi
+\`\`\`
+`,
+      },
+    })
+    const exportButton: HTMLButtonElement = await screen.findByRole('button', {
+      name: /export all rendered mermaid diagrams as svg/i,
+    })
+    await waitFor(() => {
+      expect(exportButton).toBeEnabled()
+    })
+    await user.click(exportButton)
+    expect(createObjectUrl).toHaveBeenCalledTimes(2)
+    const firstBlob: Blob = createObjectUrl.mock.calls[0][0] as Blob
+    const secondBlob: Blob = createObjectUrl.mock.calls[1][0] as Blob
+    await expect(readBlobText(firstBlob)).resolves.toContain('first-svg')
+    await expect(readBlobText(secondBlob)).resolves.toContain('second-svg')
+    expect(clickAnchor).toHaveBeenCalledTimes(2)
+    expect(revokeObjectUrl).toHaveBeenCalledTimes(2)
+    clickAnchor.mockRestore()
+  })
+
   it('renders toolbar title and default markdown', () => {
-    render(<App />)
+    renderApp()
     expect(
       screen.getByRole('heading', { level: 1, name: 'Markdown preview' }),
     ).toBeInTheDocument()
@@ -41,7 +207,7 @@ describe('App', () => {
 
   it('toggles markdown source panel with header switch', async () => {
     const user = userEvent.setup()
-    render(<App />)
+    renderApp()
     expect(
       screen.getByRole('textbox', { name: /edit markdown source/i }),
     ).toBeInTheDocument()
@@ -61,7 +227,7 @@ describe('App', () => {
   })
 
   it('updates preview when Markdown source is edited', async () => {
-    render(<App />)
+    renderApp()
     const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
       name: /edit markdown source/i,
     })
@@ -81,7 +247,7 @@ describe('App', () => {
       text: async () => '',
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(<App />)
+    renderApp()
     const input: HTMLInputElement = document.querySelector(
       'input[type="file"]',
     ) as HTMLInputElement
@@ -111,7 +277,7 @@ describe('App', () => {
       text: async () => JSON.stringify({ detail: 'bad file' }),
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(<App />)
+    renderApp()
     const input: HTMLInputElement = document.querySelector(
       'input[type="file"]',
     ) as HTMLInputElement
@@ -134,7 +300,7 @@ describe('App', () => {
       text: async () => JSON.stringify({ detail: 'server failed' }),
     })
     vi.stubGlobal('fetch', fetchMock)
-    render(<App />)
+    renderApp()
     const input: HTMLInputElement = document.querySelector(
       'input[type="file"]',
     ) as HTMLInputElement
@@ -154,7 +320,7 @@ describe('App', () => {
     const user = userEvent.setup()
     const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
     vi.stubGlobal('fetch', fetchMock)
-    render(<App />)
+    renderApp()
     const input: HTMLInputElement = document.querySelector(
       'input[type="file"]',
     ) as HTMLInputElement
@@ -169,5 +335,199 @@ describe('App', () => {
       await screen.findByRole('heading', { level: 1, name: 'Offline doc' }),
     ).toBeInTheDocument()
     expect(document.querySelector('[title="net.md"]')).not.toBeNull()
+  })
+
+  const BAD_MERMAID_DOC: string = `# Doc
+
+\`\`\`mermaid
+notvaliddiagramsyntax123
+\`\`\`
+`
+
+  it('shows preview revert banner after AI fixes mermaid; dismiss hides it', async () => {
+    const user = userEvent.setup()
+    mockRender.mockImplementation(
+      async (_id: string, chart: string): Promise<typeof MERMAID_OK_SVG> => {
+        if (chart.includes('notvaliddiagramsyntax123')) {
+          throw new Error('bad chart')
+        }
+        return MERMAID_OK_SVG
+      },
+    )
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ fixed_chart: 'flowchart LR\n  A-->B' }),
+      text: async () => '',
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, { target: { value: BAD_MERMAID_DOC } })
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /fix with ai/i }),
+      ).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /fix with ai/i }))
+    await waitFor(() => {
+      expect(
+        screen.getByText('Diagram source was updated by AI.'),
+      ).toBeInTheDocument()
+    })
+    expect(fetchMock).toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: /^dismiss$/i }))
+    expect(
+      screen.queryByText('Diagram source was updated by AI.'),
+    ).not.toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
+  it('undo on revert banner restores the previous mermaid fence', async () => {
+    const user = userEvent.setup()
+    mockRender.mockImplementation(
+      async (_id: string, chart: string): Promise<typeof MERMAID_OK_SVG> => {
+        if (chart.includes('notvaliddiagramsyntax123')) {
+          throw new Error('bad chart')
+        }
+        return MERMAID_OK_SVG
+      },
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ fixed_chart: 'flowchart LR\n  A-->B' }),
+        text: async () => '',
+      }),
+    )
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, { target: { value: BAD_MERMAID_DOC } })
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /fix with ai/i }),
+      ).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /fix with ai/i }))
+    await screen.findByText('Diagram source was updated by AI.')
+    await waitFor(() => {
+      expect(editor.value).toContain('flowchart LR')
+    })
+    await user.click(screen.getByRole('button', { name: /^undo$/i }))
+    expect(editor.value).toContain('notvaliddiagramsyntax123')
+    expect(editor.value).not.toContain('flowchart LR')
+    vi.unstubAllGlobals()
+  })
+
+  it('clears revert banner when markdown is edited manually', async () => {
+    const user = userEvent.setup()
+    mockRender.mockImplementation(
+      async (_id: string, chart: string): Promise<typeof MERMAID_OK_SVG> => {
+        if (chart.includes('notvaliddiagramsyntax123')) {
+          throw new Error('bad chart')
+        }
+        return MERMAID_OK_SVG
+      },
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ fixed_chart: 'flowchart LR\n  A-->B' }),
+        text: async () => '',
+      }),
+    )
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, { target: { value: BAD_MERMAID_DOC } })
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /fix with ai/i }),
+      ).toBeInTheDocument()
+    })
+    await user.click(screen.getByRole('button', { name: /fix with ai/i }))
+    await screen.findByText('Diagram source was updated by AI.')
+    await user.type(editor, ' ')
+    expect(
+      screen.queryByText('Diagram source was updated by AI.'),
+    ).not.toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
+
+  describe('auto-hiding toolbar', () => {
+    const VISIBLE_CLASS: string = 'app-toolbar-dock--visible'
+
+    function getToolbarDock(): HTMLElement {
+      const dock: HTMLElement | null = screen.getByRole('banner').parentElement
+      if (!dock) {
+        throw new Error('Toolbar dock is missing')
+      }
+      return dock
+    }
+
+    it('reveals the toolbar while the pointer is over the top edge', () => {
+      renderApp()
+      const dock: HTMLElement = getToolbarDock()
+      expect(dock).not.toHaveClass(VISIBLE_CLASS)
+      fireEvent.mouseEnter(dock)
+      expect(dock).toHaveClass(VISIBLE_CLASS)
+      fireEvent.mouseLeave(dock)
+      expect(dock).not.toHaveClass(VISIBLE_CLASS)
+    })
+
+    it('reveals the toolbar while a control inside it holds keyboard focus', () => {
+      renderApp()
+      const dock: HTMLElement = getToolbarDock()
+      const exportButton: HTMLElement = screen.getByRole('button', {
+        name: /export preview as pdf/i,
+      })
+      act(() => {
+        exportButton.focus()
+      })
+      expect(dock).toHaveClass(VISIBLE_CLASS)
+      act(() => {
+        exportButton.blur()
+      })
+      expect(dock).not.toHaveClass(VISIBLE_CLASS)
+    })
+
+    /** A click focuses the button without `:focus-visible`, which must not pin the toolbar open. */
+    it('hides the toolbar after a click once the pointer leaves', () => {
+      renderApp()
+      const dock: HTMLElement = getToolbarDock()
+      fireEvent.mouseEnter(dock)
+      const exportButton: HTMLElement = screen.getByRole('button', {
+        name: /export all rendered mermaid diagrams as svg/i,
+      })
+      fireEvent.click(exportButton)
+      fireEvent.focus(exportButton)
+      expect(dock).toHaveClass(VISIBLE_CLASS)
+      fireEvent.mouseLeave(dock)
+      expect(dock).not.toHaveClass(VISIBLE_CLASS)
+    })
+
+    it('keeps the toolbar revealed while an error is showing', () => {
+      renderApp()
+      const dock: HTMLElement = getToolbarDock()
+      const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+        name: /edit markdown source/i,
+      })
+      fireEvent.change(editor, { target: { value: '   ' } })
+      fireEvent.click(
+        screen.getByRole('button', { name: /export preview as pdf/i }),
+      )
+      fireEvent.mouseLeave(dock)
+      expect(screen.getByText(/nothing to export/i)).toBeInTheDocument()
+      expect(dock).toHaveClass(VISIBLE_CLASS)
+    })
   })
 })
