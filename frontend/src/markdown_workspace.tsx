@@ -8,6 +8,7 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
+  type FocusEvent,
   type MutableRefObject,
 } from 'react'
 import { Link } from 'react-router-dom'
@@ -64,6 +65,9 @@ flowchart LR
 
 const EMPTY_EXPORT_MESSAGE: string =
   'Nothing to export. Add Markdown content first.'
+
+/** Breathing room kept under the revealed toolbar so it does not touch the panes. */
+const TOOLBAR_DOCK_GAP_PX: number = 10
 
 class HttpError extends Error {
   readonly status: number
@@ -126,6 +130,18 @@ function SourceVisibilitySwitch(props: {
   )
 }
 
+/**
+ * Clicking a button focuses it too, so plain focus would pin the toolbar open and leave
+ * hover with nothing to control. Only keyboard focus should hold it open.
+ */
+function hasVisibleFocus(element: Element): boolean {
+  try {
+    return element.matches(':focus-visible')
+  } catch {
+    return true
+  }
+}
+
 function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader: FileReader = new FileReader()
@@ -160,9 +176,13 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isSourceVisible, setIsSourceVisible] = useState<boolean>(true)
+  const [isToolbarHovered, setIsToolbarHovered] = useState<boolean>(false)
+  const [isToolbarFocused, setIsToolbarFocused] = useState<boolean>(false)
   const [sourceRatio, setSourceRatio] = useState<number>(
     readSourceRatioFromStorage,
   )
+  const isToolbarVisible: boolean =
+    isToolbarHovered || isToolbarFocused || error !== null
   const [mermaidAiRevert, setMermaidAiRevert] = useState<{
     range: { start: number; end: number }
     previousSlice: string
@@ -181,27 +201,25 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
     [mermaidSvgExports],
   )
 
+  /** Offsets are read instead of the bounding rect so the hidden toolbar's slide transform is ignored. */
   useLayoutEffect(() => {
     const toolbarEl: HTMLElement | null = toolbarRef.current
     const appEl: HTMLDivElement | null = appRef.current
     if (!toolbarEl || !appEl) {
       return
     }
-    const toolbarGapPx: number = 10
-    const syncToolbarInset = (): void => {
-      const bottom: number = toolbarEl.getBoundingClientRect().bottom
-      appEl.style.setProperty(
-        '--app-toolbar-space',
-        `${bottom + toolbarGapPx}px`,
-      )
+    const syncDockHeight = (): void => {
+      const dockHeight: number =
+        toolbarEl.offsetTop + toolbarEl.offsetHeight + TOOLBAR_DOCK_GAP_PX
+      appEl.style.setProperty('--app-toolbar-dock-height', `${dockHeight}px`)
     }
-    syncToolbarInset()
-    const observer: ResizeObserver = new ResizeObserver(syncToolbarInset)
+    syncDockHeight()
+    const observer: ResizeObserver = new ResizeObserver(syncDockHeight)
     observer.observe(toolbarEl)
-    window.addEventListener('resize', syncToolbarInset)
+    window.addEventListener('resize', syncDockHeight)
     return () => {
       observer.disconnect()
-      window.removeEventListener('resize', syncToolbarInset)
+      window.removeEventListener('resize', syncDockHeight)
     }
   }, [error])
 
@@ -211,6 +229,21 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
 
   const onResetSourceRatio = useCallback((): void => {
     setSourceRatio(DEFAULT_SOURCE_RATIO)
+  }, [])
+
+  const onToolbarFocus = useCallback((event: FocusEvent<HTMLElement>): void => {
+    if (!hasVisibleFocus(event.target)) {
+      return
+    }
+    setIsToolbarFocused(true)
+  }, [])
+
+  /** Keeps the toolbar open for keyboard users until focus leaves it entirely. */
+  const onToolbarBlur = useCallback((event: FocusEvent<HTMLElement>): void => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return
+    }
+    setIsToolbarFocused(false)
   }, [])
 
   useEffect(() => {
@@ -465,49 +498,69 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
 
   return (
     <div className="app" ref={appRef}>
-      <header className="app-toolbar" ref={toolbarRef}>
-        <h1 className="app-title">Markdown preview</h1>
-        <div className="app-actions">
-          <label className="file-button">
-            {isLoading ? 'Loading…' : 'Choose .md file'}
-            <input
-              type="file"
-              accept=".md,.markdown,text/markdown"
-              onChange={onFileSelected}
+      <div
+        className={
+          isToolbarVisible
+            ? 'app-toolbar-dock app-toolbar-dock--visible'
+            : 'app-toolbar-dock'
+        }
+        onMouseEnter={() => {
+          setIsToolbarHovered(true)
+        }}
+        onMouseLeave={() => {
+          setIsToolbarHovered(false)
+        }}
+        onFocus={onToolbarFocus}
+        onBlur={onToolbarBlur}
+      >
+        <div className="app-toolbar-dock__trigger" aria-hidden="true" />
+        <header className="app-toolbar" ref={toolbarRef}>
+          <h1 className="app-title">Markdown preview</h1>
+          <div className="app-actions">
+            <label className="file-button">
+              {isLoading ? 'Loading…' : 'Choose .md file'}
+              <input
+                type="file"
+                accept=".md,.markdown,text/markdown"
+                onChange={onFileSelected}
+                disabled={isLoading}
+              />
+            </label>
+            {fileName ? (
+              <span className="file-name" title={fileName}>
+                {fileName}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="file-button file-button--secondary"
+              title="Uses your browser's print dialog; choose Save as PDF"
+              aria-label="Export preview as PDF using the print dialog"
               disabled={isLoading}
-            />
-          </label>
-          {fileName ? (
-            <span className="file-name" title={fileName}>
-              {fileName}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="file-button file-button--secondary"
-            title="Uses your browser's print dialog; choose Save as PDF"
-            aria-label="Export preview as PDF using the print dialog"
-            disabled={isLoading}
-            onClick={onExportPdf}
-          >
-            Export PDF
-          </button>
-          <button
-            type="button"
-            className="file-button file-button--secondary"
-            title="Downloads each rendered Mermaid diagram as an SVG file"
-            aria-label="Export all rendered Mermaid diagrams as SVG"
-            disabled={isLoading || mermaidSvgExportList.length === 0}
-            onClick={onExportMermaidSvgs}
-          >
-            Export Mermaid SVGs
-          </button>
-          <Link className="file-button app-toolbar__config-link" to="/settings">
-            Configuration
-          </Link>
-        </div>
-        {error ? <p className="app-error">{error}</p> : null}
-      </header>
+              onClick={onExportPdf}
+            >
+              Export PDF
+            </button>
+            <button
+              type="button"
+              className="file-button file-button--secondary"
+              title="Downloads each rendered Mermaid diagram as an SVG file"
+              aria-label="Export all rendered Mermaid diagrams as SVG"
+              disabled={isLoading || mermaidSvgExportList.length === 0}
+              onClick={onExportMermaidSvgs}
+            >
+              Export Mermaid SVGs
+            </button>
+            <Link
+              className="file-button app-toolbar__config-link"
+              to="/settings"
+            >
+              Configuration
+            </Link>
+          </div>
+          {error ? <p className="app-error">{error}</p> : null}
+        </header>
+      </div>
       <main className="app-main">
         <div
           ref={splitRef}

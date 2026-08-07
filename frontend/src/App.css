@@ -1,11 +1,57 @@
 .app {
-  --app-toolbar-space: 5.75rem;
+  --app-toolbar-trigger-height: 0.85rem;
+  --app-toolbar-space: 1.15rem;
+  /* Replaced with the measured toolbar height once the dock effect runs. */
+  --app-toolbar-dock-height: 8rem;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   padding-top: var(--app-toolbar-space);
   text-align: left;
+}
+
+/**
+ * Auto-hiding toolbar: the dock is only as tall as its hover strip until the pointer
+ * reaches the top edge, then it grows to cover the toolbar so the pointer stays inside it.
+ */
+.app-toolbar-dock {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: var(--app-toolbar-trigger-height);
+}
+
+.app-toolbar-dock--visible {
+  height: var(--app-toolbar-dock-height);
+}
+
+.app-toolbar-dock__trigger {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-toolbar-trigger-height);
+}
+
+/* Hints that the toolbar is waiting above the top edge. */
+.app-toolbar-dock__trigger::after {
+  content: '';
+  position: absolute;
+  top: 0.25rem;
+  left: 50%;
+  width: 2.75rem;
+  height: 0.25rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--app-border);
+  transition: opacity 180ms ease;
+}
+
+.app-toolbar-dock--visible .app-toolbar-dock__trigger::after {
+  opacity: 0;
 }
 
 .app-toolbar {
@@ -23,6 +69,27 @@
     0 4px 6px -1px rgba(15, 23, 42, 0.08),
     0 10px 24px -4px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(10px);
+}
+
+.app-toolbar-dock .app-toolbar {
+  position: absolute;
+  opacity: 0;
+  transform: translateY(calc(-100% - 1.5rem));
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+.app-toolbar-dock--visible .app-toolbar {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toolbar-dock .app-toolbar,
+  .app-toolbar-dock__trigger::after {
+    transition: none;
+  }
 }
 
 .app-title {
@@ -672,7 +739,8 @@ a.file-button {
 }
 
 @media print {
-  .app-toolbar {
+  .app-toolbar,
+  .app-toolbar-dock {
     display: none !important;
   }
 

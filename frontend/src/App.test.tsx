@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -460,5 +461,73 @@ notvaliddiagramsyntax123
       screen.queryByText('Diagram source was updated by AI.'),
     ).not.toBeInTheDocument()
     vi.unstubAllGlobals()
+  })
+
+  describe('auto-hiding toolbar', () => {
+    const VISIBLE_CLASS: string = 'app-toolbar-dock--visible'
+
+    function getToolbarDock(): HTMLElement {
+      const dock: HTMLElement | null = screen.getByRole('banner').parentElement
+      if (!dock) {
+        throw new Error('Toolbar dock is missing')
+      }
+      return dock
+    }
+
+    it('reveals the toolbar while the pointer is over the top edge', () => {
+      renderApp()
+      const dock: HTMLElement = getToolbarDock()
+      expect(dock).not.toHaveClass(VISIBLE_CLASS)
+      fireEvent.mouseEnter(dock)
+      expect(dock).toHaveClass(VISIBLE_CLASS)
+      fireEvent.mouseLeave(dock)
+      expect(dock).not.toHaveClass(VISIBLE_CLASS)
+    })
+
+    it('reveals the toolbar while a control inside it holds keyboard focus', () => {
+      renderApp()
+      const dock: HTMLElement = getToolbarDock()
+      const exportButton: HTMLElement = screen.getByRole('button', {
+        name: /export preview as pdf/i,
+      })
+      act(() => {
+        exportButton.focus()
+      })
+      expect(dock).toHaveClass(VISIBLE_CLASS)
+      act(() => {
+        exportButton.blur()
+      })
+      expect(dock).not.toHaveClass(VISIBLE_CLASS)
+    })
+
+    /** A click focuses the button without `:focus-visible`, which must not pin the toolbar open. */
+    it('hides the toolbar after a click once the pointer leaves', () => {
+      renderApp()
+      const dock: HTMLElement = getToolbarDock()
+      fireEvent.mouseEnter(dock)
+      const exportButton: HTMLElement = screen.getByRole('button', {
+        name: /export all rendered mermaid diagrams as svg/i,
+      })
+      fireEvent.click(exportButton)
+      fireEvent.focus(exportButton)
+      expect(dock).toHaveClass(VISIBLE_CLASS)
+      fireEvent.mouseLeave(dock)
+      expect(dock).not.toHaveClass(VISIBLE_CLASS)
+    })
+
+    it('keeps the toolbar revealed while an error is showing', () => {
+      renderApp()
+      const dock: HTMLElement = getToolbarDock()
+      const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+        name: /edit markdown source/i,
+      })
+      fireEvent.change(editor, { target: { value: '   ' } })
+      fireEvent.click(
+        screen.getByRole('button', { name: /export preview as pdf/i }),
+      )
+      fireEvent.mouseLeave(dock)
+      expect(screen.getByText(/nothing to export/i)).toBeInTheDocument()
+      expect(dock).toHaveClass(VISIBLE_CLASS)
+    })
   })
 })

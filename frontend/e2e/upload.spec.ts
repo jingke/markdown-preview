@@ -10,6 +10,8 @@ test.describe('Markdown file upload', () => {
     page,
   }) => {
     await page.goto('/')
+    // The toolbar auto-hides, so reveal it the way a user would before using its controls.
+    await page.mouse.move(400, 3)
     await expect(
       page.getByRole('heading', { level: 1, name: 'Markdown preview' }),
     ).toBeVisible()
@@ -26,12 +28,14 @@ test.describe('Markdown file upload', () => {
 
     const uploadResponsePromise = page.waitForResponse(
       (response) =>
-        response.url().includes('/api/preview/uploads') &&
+        response.url().includes('/api/preview/upload') &&
         response.request().method() === 'POST',
     )
-    await page.getByTestId('markdown-file-upload').setInputFiles(filePath)
+    await page.locator('input[type="file"]').setInputFiles(filePath)
     const uploadResponse = await uploadResponsePromise
     expect(uploadResponse.ok()).toBeTruthy()
+
+    await expect(page.locator('.app-error')).toHaveCount(0)
 
     await expect(
       page.getByRole('heading', { level: 1, name: 'E2E upload heading' }),
