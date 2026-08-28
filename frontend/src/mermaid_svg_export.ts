@@ -10,6 +10,11 @@ export type MermaidSvgExportChangeHandler = (
   record: MermaidSvgExportRecord | null,
 ) => void
 
+/** Single source of truth so per-diagram and export-all downloads agree on names. */
+export function buildMermaidSvgFileName(exportIndex: number): string {
+  return `mermaid-diagram-${exportIndex + 1}.svg`
+}
+
 export function downloadSvgFile(svgMarkup: string, fileName: string): void {
   const blob: Blob = new Blob([svgMarkup], {
     type: 'image/svg+xml;charset=utf-8',

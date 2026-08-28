@@ -54,6 +54,7 @@ function installDownloadSpies(): {
   createObjectUrl: ReturnType<typeof vi.fn>
   revokeObjectUrl: ReturnType<typeof vi.fn>
   clickAnchor: ReturnType<typeof vi.spyOn>
+  downloadNames: string[]
 } {
   const createObjectUrl = vi.fn().mockReturnValue('blob:mermaid-svg')
   const revokeObjectUrl = vi.fn()
@@ -65,10 +66,13 @@ function installDownloadSpies(): {
     configurable: true,
     value: revokeObjectUrl,
   })
+  const downloadNames: string[] = []
   const clickAnchor = vi
     .spyOn(HTMLAnchorElement.prototype, 'click')
-    .mockImplementation(() => {})
-  return { createObjectUrl, revokeObjectUrl, clickAnchor }
+    .mockImplementation(function (this: HTMLAnchorElement) {
+      downloadNames.push(this.download)
+    })
+  return { createObjectUrl, revokeObjectUrl, clickAnchor, downloadNames }
 }
 
 afterEach(() => {
@@ -189,6 +193,126 @@ sequenceDiagram
     await expect(readBlobText(secondBlob)).resolves.toContain('second-svg')
     expect(clickAnchor).toHaveBeenCalledTimes(2)
     expect(revokeObjectUrl).toHaveBeenCalledTimes(2)
+    clickAnchor.mockRestore()
+  })
+
+  it('names single and bulk mermaid SVG exports by document position', async () => {
+    const user = userEvent.setup()
+    const { downloadNames, clickAnchor } = installDownloadSpies()
+    mockRender.mockImplementation(
+      async (_id: string, chart: string): Promise<typeof MERMAID_OK_SVG> => {
+        if (chart.includes('sequenceDiagram')) {
+          return {
+            svg: '<svg data-testid="second-svg"></svg>',
+            bindFunctions: undefined,
+          }
+        }
+        return {
+          svg: '<svg data-testid="first-svg"></svg>',
+          bindFunctions: undefined,
+        }
+      },
+    )
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    // Long preamble so a character-offset-based name would be obvious
+    fireEvent.change(editor, {
+      target: {
+        value: `# Two diagrams
+
+${'Filler prose to push the diagrams away from the document start. '.repeat(4)}
+
+\`\`\`mermaid
+flowchart LR
+  A-->B
+\`\`\`
+
+More prose between the two diagrams.
+
+\`\`\`mermaid
+sequenceDiagram
+  Alice->>Bob: Hi
+\`\`\`
+`,
+      },
+    })
+    const singleExportButtons: HTMLButtonElement[] = await waitFor(() => {
+      const buttons: HTMLButtonElement[] = screen.getAllByRole('button', {
+        name: /^export svg$/i,
+      })
+      expect(buttons).toHaveLength(2)
+      return buttons
+    })
+    await user.click(singleExportButtons[0])
+    await user.click(singleExportButtons[1])
+    expect(downloadNames).toEqual([
+      'mermaid-diagram-1.svg',
+      'mermaid-diagram-2.svg',
+    ])
+    const exportAllButton: HTMLButtonElement = screen.getByRole('button', {
+      name: /export all rendered mermaid diagrams as svg/i,
+    })
+    await waitFor(() => {
+      expect(exportAllButton).toBeEnabled()
+    })
+    await user.click(exportAllButton)
+    expect(downloadNames.slice(2)).toEqual([
+      'mermaid-diagram-1.svg',
+      'mermaid-diagram-2.svg',
+    ])
+    clickAnchor.mockRestore()
+  })
+
+  it('keeps mermaid SVG export numbering when a diagram fails to render', async () => {
+    const user = userEvent.setup()
+    const { downloadNames, clickAnchor } = installDownloadSpies()
+    mockRender.mockImplementation(
+      async (_id: string, chart: string): Promise<typeof MERMAID_OK_SVG> => {
+        if (chart.includes('broken')) {
+          throw new Error('Parse error')
+        }
+        return MERMAID_OK_SVG
+      },
+    )
+    renderApp()
+    const editor: HTMLTextAreaElement = screen.getByRole('textbox', {
+      name: /edit markdown source/i,
+    })
+    fireEvent.change(editor, {
+      target: {
+        value: `# Three diagrams
+
+\`\`\`mermaid
+flowchart LR
+  A-->B
+\`\`\`
+
+\`\`\`mermaid
+broken diagram
+\`\`\`
+
+\`\`\`mermaid
+sequenceDiagram
+  Alice->>Bob: Hi
+\`\`\`
+`,
+      },
+    })
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('button', { name: /^export svg$/i }),
+      ).toHaveLength(2)
+    })
+    const exportAllButton: HTMLButtonElement = screen.getByRole('button', {
+      name: /export all rendered mermaid diagrams as svg/i,
+    })
+    await user.click(exportAllButton)
+    expect(downloadNames).toEqual([
+      'mermaid-diagram-1.svg',
+      'mermaid-diagram-3.svg',
+    ])
     clickAnchor.mockRestore()
   })
 

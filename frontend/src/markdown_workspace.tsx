@@ -489,11 +489,9 @@ export function MarkdownWorkspace(props: MarkdownWorkspaceProps) {
   )
 
   const onExportMermaidSvgs = useCallback((): void => {
-    mermaidSvgExportList.forEach(
-      (record: MermaidSvgExportRecord, index: number): void => {
-        downloadSvgFile(record.svg, `mermaid-diagram-${index + 1}.svg`)
-      },
-    )
+    mermaidSvgExportList.forEach((record: MermaidSvgExportRecord): void => {
+      downloadSvgFile(record.svg, record.fileName)
+    })
   }, [mermaidSvgExportList])
 
   return (

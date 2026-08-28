@@ -5,7 +5,10 @@ import type { ExtraProps } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { MermaidDiagram } from './mermaid_diagram'
-import type { MermaidSvgExportChangeHandler } from '../mermaid_svg_export'
+import {
+  buildMermaidSvgFileName,
+  type MermaidSvgExportChangeHandler,
+} from '../mermaid_svg_export'
 
 export interface MermaidFenceReplaceArgs {
   sourceRange: { start: number; end: number }
@@ -36,6 +39,22 @@ function createMarkdownComponents(
   groqModel?: string,
   onMermaidSvgExportChange?: MermaidSvgExportChangeHandler,
 ): Components {
+  /**
+   * react-markdown renders fenced code in document order, so the first time a
+   * fence is seen its position in this map is its position in the document.
+   * Caching by fence key keeps the number stable when a single diagram
+   * re-renders on its own.
+   */
+  const exportIndexByKey: Map<string, number> = new Map()
+  const resolveExportIndex = (key: string): number => {
+    const known: number | undefined = exportIndexByKey.get(key)
+    if (known !== undefined) {
+      return known
+    }
+    const next: number = exportIndexByKey.size
+    exportIndexByKey.set(key, next)
+    return next
+  }
   return {
     code(props: MarkdownCodeProps) {
       const { className, children, inline, node, ...rest } = props
@@ -56,7 +75,7 @@ function createMarkdownComponents(
           sourceRange !== null
             ? `${sourceRange.start}-${sourceRange.end}`
             : text
-        const exportOrder: number = sourceRange?.start ?? Number.MAX_SAFE_INTEGER
+        const exportIndex: number = resolveExportIndex(exportKey)
         return (
           <MermaidDiagram
             chart={text}
@@ -66,8 +85,8 @@ function createMarkdownComponents(
             groqApiKey={groqApiKey}
             groqModel={groqModel}
             exportId={`mermaid-${exportKey}`}
-            exportFileName={`mermaid-diagram-${exportOrder + 1}.svg`}
-            exportOrder={exportOrder}
+            exportFileName={buildMermaidSvgFileName(exportIndex)}
+            exportOrder={exportIndex}
             onSvgExportChange={onMermaidSvgExportChange}
           />
         )
